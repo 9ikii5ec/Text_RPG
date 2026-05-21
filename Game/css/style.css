@@ -1,0 +1,494 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║  VERMIS: MIST & MIRRORS — Гайд-стиль (Vermis PDF Aesthetic)              ║
+ * ║  Бежево-коричневые тона, сепия, старая бумага, чернила                    ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+
+:root {
+    --bg-paper: #f4ede4;
+    --bg-dark: #2a2520;
+    --text-ink: #1a1714;
+    --text-sepia: #4a4035;
+    --accent-red: #8b2500;
+    --accent-blood: #6b1a1a;
+    --border-brown: #5c4a3d;
+    --highlight: #d4a574;
+    --shadow: rgba(0, 0, 0, 0.3);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: var(--bg-dark);
+    color: var(--text-ink);
+    font-family: 'Crimson Text', Georgia, serif;
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+    cursor: text;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════ */
+/* КОНТЕЙНЕР */
+/* ═════════════════════════════════════════════════════════════════════════════ */
+
+.game-container {
+    display: flex;
+    min-height: 100vh;
+    gap: 0;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════ */
+/* БОКОВАЯ ПАНЕЛЬ */
+/* ═════════════════════════════════════════════════════════════════════════════ */
+
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 260px;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--bg-paper);
+    border-right: 2px solid var(--border-brown);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0;
+    z-index: 100;
+}
+
+.panel-box {
+    border-bottom: 1px solid var(--border-brown);
+    padding: 15px;
+    background: linear-gradient(180deg, var(--bg-paper) 0%, #e8dfd3 100%);
+}
+
+.panel-box h3 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent-blood);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border-brown);
+}
+
+.stat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.stat-label {
+    color: var(--text-sepia);
+    min-width: 50px;
+    font-style: italic;
+}
+
+.stat-value {
+    font-weight: 600;
+    color: var(--text-ink);
+}
+
+/* Полоса HP */
+.hp-bar {
+    flex: 1;
+    height: 10px;
+    background: #d4c4b0;
+    border: 1px solid var(--border-brown);
+}
+
+.hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-blood), var(--accent-red));
+    transition: width 0.3s ease;
+}
+
+.player-list {
+    list-style: none;
+    font-size: 13px;
+}
+
+.player-list li {
+    padding: 4px 0;
+    border-bottom: 1px dotted #c4b4a0;
+}
+
+.player-list li:last-child {
+    border-bottom: none;
+}
+
+/* Быстрые команды */
+.quick-commands {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.cmd-btn {
+    background: linear-gradient(180deg, #f8f2ea 0%, #e8dfd3 100%);
+    border: 1px solid var(--border-brown);
+    color: var(--text-ink);
+    padding: 8px 10px;
+    font-family: 'Crimson Text', serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.cmd-btn:hover {
+    background: linear-gradient(180deg, #fff 0%, #f4ede4 100%);
+    border-color: var(--accent-red);
+    color: var(--accent-blood);
+}
+
+.cmd-btn:active {
+    background: #d4c4b0;
+    transform: translateY(1px);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════ */
+/* ТЕРМИНАЛ */
+/* ═════════════════════════════════════════════════════════════════════════════ */
+
+.main-content {
+    margin-left: 260px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-paper);
+    position: relative;
+}
+
+/* Текстура бумаги */
+.main-content::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: 
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+}
+
+.output-log {
+    flex: 1;
+    padding: 20px 25px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-brown) transparent;
+}
+
+.output-log::-webkit-scrollbar {
+    width: 8px;
+}
+
+.output-log::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.output-log::-webkit-scrollbar-thumb {
+    background: var(--border-brown);
+}
+
+.output-log p {
+    line-height: 1.7;
+    max-width: 700px;
+}
+
+.output-block {
+    padding: 8px 0;
+    border-bottom: 1px dotted rgba(90, 70, 50, 0.2);
+    margin-bottom: 5px;
+    animation: fadeIn 0.3s ease;
+}
+
+.output-block:last-child {
+    border-bottom: none;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════ */
+/* СТИЛИ ТЕКСТА */
+/* ═════════════════════════════════════════════════════════════════════════════ */
+
+.welcome-screen {
+    padding: 10px 0;
+}
+
+.game-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent-blood);
+    letter-spacing: 8px;
+    text-align: center;
+    margin-bottom: 5px;
+}
+
+.game-subtitle {
+    font-size: 16px;
+    color: var(--text-sepia);
+    letter-spacing: 4px;
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+.game-version {
+    font-size: 11px;
+    color: var(--border-brown);
+    text-align: center;
+    font-style: italic;
+}
+
+.welcome-text {
+    color: var(--text-sepia);
+    font-style: italic;
+}
+
+/* Экран создания персонажа */
+.creation-panel {
+    padding: 15px 0;
+    border-top: 1px dashed var(--border-brown);
+    margin-top: 10px;
+}
+
+.creation-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-blood);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+}
+
+.creation-complete {
+    padding: 15px 0;
+    border-top: 2px solid var(--accent-blood);
+    border-bottom: 2px solid var(--accent-blood);
+    margin: 10px 0;
+}
+
+.class-option {
+    padding: 8px 0;
+    border-bottom: 1px dotted #c4b4a0;
+    margin-bottom: 8px;
+}
+
+.class-epithet {
+    font-style: italic;
+    color: var(--text-sepia);
+    font-size: 12px;
+}
+
+.class-desc {
+    color: var(--text-ink);
+    font-size: 13px;
+}
+
+.class-quote {
+    font-style: italic;
+    color: var(--accent-blood);
+    font-size: 12px;
+    padding: 10px 0;
+    border-left: 2px solid var(--accent-red);
+    padding-left: 10px;
+    margin: 10px 0;
+}
+
+.class-stats {
+    font-size: 12px;
+    color: var(--text-sepia);
+    background: #e8dfd3;
+    padding: 8px;
+    margin-top: 8px;
+}
+
+/* Типы сообщений */
+.system-msg {
+    font-weight: 700;
+    color: var(--accent-blood);
+    letter-spacing: 1px;
+}
+
+.info-msg {
+    color: var(--text-sepia);
+    font-weight: 600;
+}
+
+.error-msg {
+    color: var(--accent-red);
+    font-weight: 600;
+}
+
+.success-msg {
+    color: #2d5a27;
+    font-weight: 600;
+}
+
+.warning-msg {
+    color: #8b5a00;
+    font-weight: 600;
+}
+
+.hint-msg {
+    color: var(--text-sepia);
+    font-style: italic;
+    font-size: 13px;
+}
+
+.help-text {
+    color: var(--text-sepia);
+    font-style: italic;
+    font-size: 13px;
+}
+
+.help-category {
+    color: var(--accent-blood);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 1px;
+}
+
+.prompt-text {
+    color: var(--text-ink);
+    font-style: italic;
+}
+
+.user-input {
+    color: var(--text-ink);
+    font-weight: 600;
+}
+
+.npc-name {
+    color: var(--accent-blood);
+    font-weight: 700;
+}
+
+.atmosphere {
+    font-style: italic;
+    color: var(--text-sepia);
+    font-size: 13px;
+}
+
+.location-en {
+    font-style: italic;
+    color: var(--border-brown);
+    font-size: 12px;
+}
+
+.stat {
+    color: var(--text-ink);
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════ */
+/* ПОЛЕ ВВОДА */
+/* ═════════════════════════════════════════════════════════════════════════════ */
+
+.input-area {
+    display: flex;
+    align-items: center;
+    padding: 15px 25px;
+    border-top: 2px solid var(--border-brown);
+    background: linear-gradient(180deg, #e8dfd3 0%, var(--bg-paper) 100%);
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.prompt {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-blood);
+}
+
+#terminal-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-ink);
+    font-family: 'Crimson Text', serif;
+    font-size: 16px;
+    outline: none;
+    caret-color: var(--accent-blood);
+}
+
+#terminal-input::placeholder {
+    color: #a09080;
+    font-style: italic;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════ */
+/* АДАПТИВНОСТЬ */
+/* ═════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 800px) {
+    .game-container {
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        border-right: none;
+        border-bottom: 2px solid var(--border-brown);
+    }
+    
+    .main-content {
+        margin-left: 0;
+        min-height: 400px;
+    }
+    
+    .panel-box {
+        flex: 1;
+        min-width: 200px;
+    }
+}
+
+@media (max-width: 500px) {
+    .sidebar {
+        flex-direction: column;
+    }
+    
+    .panel-box {
+        width: 100%;
+    }
+    
+    .quick-commands {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+}
+
+/* ═════════════════════════════════════════════════════════════════════════════ */
+/* СЕЛЕКЦИЯ */
+/* ═════════════════════════════════════════════════════════════════════════════ */
+
+::selection {
+    background: var(--highlight);
+    color: var(--text-ink);
+}
