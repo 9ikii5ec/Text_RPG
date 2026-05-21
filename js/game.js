@@ -684,6 +684,7 @@ function handleHelp(state) {
 // РАЗДЕЛ 6: ПАРСЕР ВВОДА
 // ═══════════════════════════════════════════════════════════════════════════════
 const VerbMap = {
+    // Полные команды
     "идти": "move", "иду": "move", "пройти": "move",
     "осмотреться": "look", "осмотреть": "look", "смотреть": "look",
     "изучить": "examine", "рассмотреть": "examine",
@@ -697,10 +698,36 @@ const VerbMap = {
     "помощь": "help", "help": "help"
 };
 
+// Сокращения команд
+const ShortcutMap = {
+    "о": "осмотреться",
+    "ж": "взять",
+    "и": "инвентарь",
+    "с": "статус",
+    "к": "карта",
+    "п": "помощь",
+    "г": "говорить",
+    "з": "изучить",
+    "ю": "обокрасть",
+    "а": "атаковать"
+};
+
+function expandShortcuts(input) {
+    const tokens = input.trim().split(/\s+/);
+    if (tokens.length > 0 && ShortcutMap[tokens[0]]) {
+        tokens[0] = ShortcutMap[tokens[0]];
+        return tokens.join(" ");
+    }
+    return input;
+}
+
 function parseInput(input, phase) {
     const trimmed = input.trim();
     if (!trimmed) return null;
-    const lower = trimmed.toLowerCase();
+    
+    // Расширить сокращения
+    const expanded = expandShortcuts(trimmed);
+    const lower = expanded.toLowerCase();
     const tokens = lower.split(/\s+/);
     const verb = tokens[0];
     const target = tokens.slice(1).join(" ");
@@ -898,7 +925,7 @@ const Renderer = {
         let html = `<p class="system-msg">═══ ДА БУДЕТ ТАК ═══</p>`;
         html += `<p>${name}, ${epithet}.</p>`;
         html += `<p>Твоё путешествие начинается в Стеклянном Чистилище.</p>`;
-        html += `<p class="hint-msg">Кликай по выделенным словам или введи 'осмотреться'.</p>`;
+        html += `<p class="hint-msg">Кликай по выделенным словам, печатай команды (о, ж, и, с, к — быстрые сокращения), или введи 'помощь' для полного списка.</p>`;
         return html;
     },
 
@@ -972,21 +999,22 @@ const Renderer = {
 
     renderHelp() {
         let html = `<p class="system-msg">═══ КОМАНДЫ ═══</p>`;
+        html += `<p class="hint-msg">Сокращения: о=осмотреться, ж=взять, и=инвентарь, с=статус, к=карта, п=помощь</p>`;
         html += `<p><strong>ПЕРЕДВИЖЕНИЕ:</strong></p>`;
-        html += `<p>• идти [место] — перейти в локацию</p>`;
-        html += `<p>• осмотреться — осмотреться вокруг</p>`;
-        html += `<p>• изучить [объект] — рассмотреть детально</p>`;
+        html += `<p>• <span class="cmd-example">идти [место]</span> — перейти в локацию (быстро: нажми на название места)</p>`;
+        html += `<p>• <span class="cmd-example">осмотреться</span> (сокр: о) — осмотреться вокруг, узнать, что рядом</p>`;
+        html += `<p>• <span class="cmd-example">изучить [объект]</span> (сокр: з) — рассмотреть детально предмет или персонажа</p>`;
         html += `<p><strong>ДЕЙСТВИЯ:</strong></p>`;
-        html += `<p>• взять [предмет] — подобрать предмет</p>`;
-        html += `<p>• инвентарь — показать инвентарь</p>`;
-        html += `<p>• говорить [кто] — поговорить</p>`;
-        html += `<p>• обокрасть [кто] — украсть</p>`;
-        html += `<p>• атаковать [кто] — атаковать</p>`;
+        html += `<p>• <span class="cmd-example">взять [предмет]</span> (сокр: ж) — подобрать предмет (быстро: нажми на его название)</p>`;
+        html += `<p>• <span class="cmd-example">говорить [кто]</span> (сокр: г) — поговорить с кем-то (быстро: нажми на имя)</p>`;
+        html += `<p>• <span class="cmd-example">обокрасть [кто]</span> (сокр: ю) — попытаться украсть что-то</p>`;
+        html += `<p>• <span class="cmd-example">атаковать [кто]</span> (сокр: а) — атаковать врага</p>`;
         html += `<p><strong>ИНФОРМАЦИЯ:</strong></p>`;
-        html += `<p>• статус — характеристики</p>`;
-        html += `<p>• карта — карта посещённых мест</p>`;
-        html += `<p>• помощь — эта справка</p>`;
-        html += `<p class="hint-msg">Совет: кликай по выделенным словам в тексте — это быстро вызывает нужную команду.</p>`;
+        html += `<p>• <span class="cmd-example">инвентарь</span> (сокр: и) — показать всё в рюкзаке</p>`;
+        html += `<p>• <span class="cmd-example">статус</span> (сокр: с) — характеристики персонажа</p>`;
+        html += `<p>• <span class="cmd-example">карта</span> (сокр: к) — карта посещённых мест</p>`;
+        html += `<p>• <span class="cmd-example">помощь</span> (сокр: п) — эта справка</p>`;
+        html += `<p class="hint-msg">💡 Совет: кликай по <span class="clickable">выделенным словам</span> в тексте — это быстро вызывает команду. Используй ↑↓ стрелки для истории команд.</p>`;
         return html;
     },
 
@@ -1099,6 +1127,14 @@ const Game = {
             this.autoCompleteIndex = 0;
             this.autoCompleteMatches = [];
         });
+
+        this.inputEl.addEventListener("focus", () => {
+            this.inputEl.style.boxShadow = "0 0 0 2px var(--accent-blood)";
+        });
+
+        this.inputEl.addEventListener("blur", () => {
+            this.inputEl.style.boxShadow = "none";
+        });
     },
 
     dispatch(input) {
@@ -1149,16 +1185,23 @@ const Game = {
         if (!input) return;
 
         const words = input.split(" ");
-        const last = words[words.length - 1];
+        const last = words[words.length - 1].toLowerCase();
 
         if (this.autoCompleteMatches.length === 0) {
-            this.autoCompleteMatches = Object.keys(VerbMap).filter(v => v.startsWith(last.toLowerCase()));
+            // Получить все доступные команды
+            const allVerbs = Object.keys(VerbMap);
+            // Фильтровать по началу введённого текста
+            this.autoCompleteMatches = allVerbs.filter(v => 
+                v.startsWith(last) && v !== last
+            );
             this.autoCompleteIndex = 0;
         }
 
         if (this.autoCompleteMatches.length === 0) return;
 
-        words[words.length - 1] = this.autoCompleteMatches[this.autoCompleteIndex % this.autoCompleteMatches.length];
+        // Найти совпадение и вставить его
+        const matched = this.autoCompleteMatches[this.autoCompleteIndex % this.autoCompleteMatches.length];
+        words[words.length - 1] = matched;
         this.autoCompleteIndex++;
         this.inputEl.value = words.join(" ");
     },
@@ -1167,7 +1210,7 @@ const Game = {
         let html = `<div class="welcome-screen">`;
         html += `<p class="game-title">V E R M I S</p>`;
         html += `<p class="game-subtitle">M I S T   &   M I R R O R S</p>`;
-        html += `<p class="game-version">Text-RPG Prototype v3.1</p>`;
+        html += `<p class="game-version">Text-RPG Prototype v3.2 — Enhanced</p>`;
         html += `<br>`;
         html += `<p class="welcome-text">Стеклянное Чистилище ждёт.</p>`;
         html += `<p class="welcome-text">Здесь отражения лгут, а туман хранит секреты.</p>`;
@@ -1176,6 +1219,7 @@ const Game = {
         html += `<p>Темнота. Холод. Звон стекла.</p>`;
         html += `<p>Ты открываешь глаза. Бесконечные коридоры из зеркал и тумана.</p>`;
         html += `<p class="prompt-text">Ты не помнишь своего имени. Но ты должен его назвать.</p>`;
+        html += `<p class="hint-msg">🎮 Совет: Используй сокращения (о, ж, и, с, к), нажимай ↑↓ для истории, Tab для автодополнения, кликай по словам!</p>`;
         html += `<p class="hint-msg">Введи имя персонажа:</p>`;
         html += `</div>`;
 
@@ -1195,10 +1239,30 @@ const Game = {
 document.addEventListener("DOMContentLoaded", () => {
     const inputEl = document.getElementById("terminal-input");
     const outputEl = document.getElementById("terminal-output");
+    const sidebarEl = document.getElementById("game-sidebar");
+    const toggleBtn = document.getElementById("sidebar-toggle");
 
     if (!inputEl || !outputEl) {
         console.error("DOM elements not found");
         return;
+    }
+
+    // Toggle боковой панели на мобильных
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+            if (sidebarEl) {
+                sidebarEl.classList.toggle("hidden");
+            }
+        });
+    }
+
+    // Закрыть боковую панель при клике на контент на мобильных
+    if (outputEl) {
+        outputEl.addEventListener("click", () => {
+            if (sidebarEl && window.innerWidth <= 900) {
+                sidebarEl.classList.add("hidden");
+            }
+        });
     }
 
     // Инициализация аудио при первом клике
@@ -1214,6 +1278,10 @@ document.addEventListener("DOMContentLoaded", () => {
             if (cmd) {
                 Audio.click();
                 Game.executeCommand(cmd);
+                // Закрыть боковую панель на мобильных
+                if (sidebarEl && window.innerWidth <= 900) {
+                    sidebarEl.classList.add("hidden");
+                }
             }
         }
     });
@@ -1226,7 +1294,13 @@ document.addEventListener("DOMContentLoaded", () => {
         btn.addEventListener("click", () => {
             Audio.click();
             const cmd = btn.getAttribute("data-cmd");
-            if (cmd) Game.executeCommand(cmd);
+            if (cmd) {
+                Game.executeCommand(cmd);
+                // Закрыть боковую панель на мобильных
+                if (sidebarEl && window.innerWidth <= 900) {
+                    sidebarEl.classList.add("hidden");
+                }
+            }
         });
 
         btn.addEventListener("mouseenter", () => {

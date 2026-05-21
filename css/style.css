@@ -61,6 +61,38 @@ body {
     gap: 0;
     padding: 0;
     z-index: 100;
+    transition: transform 0.3s ease;
+}
+
+.sidebar.hidden {
+    transform: translateX(-100%);
+}
+
+.sidebar-toggle {
+    display: none;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 101;
+    background: var(--accent-blood);
+    color: var(--bg-paper);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.sidebar-toggle:hover {
+    background: var(--accent-red);
+    transform: scale(1.05);
+}
+
+.sidebar-toggle:active {
+    transform: scale(0.95);
 }
 
 .panel-box {
@@ -370,6 +402,15 @@ body {
     letter-spacing: 1px;
 }
 
+.cmd-example {
+    background: #e8dfd3;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    color: var(--text-ink);
+}
+
 .prompt-text {
     color: var(--text-ink);
     font-style: italic;
@@ -458,6 +499,11 @@ body {
     font-size: 16px;
     outline: none;
     caret-color: var(--accent-blood);
+    transition: box-shadow 0.2s ease;
+}
+
+#terminal-input:focus {
+    box-shadow: 0 0 0 2px var(--accent-blood);
 }
 
 #terminal-input::placeholder {
@@ -468,19 +514,44 @@ body {
 /* ═════════════════════════════════════════════════════════════════════════════
    АДАПТИВНОСТЬ
    ═════════════════════════════════════════════════════════════════════════════ */
-@media (max-width: 800px) {
-    .game-container {
-        flex-direction: column;
+@media (max-width: 900px) {
+    .sidebar-toggle {
+        display: block;
+    }
+
+    .main-content {
+        margin-left: 0;
     }
 
     .sidebar {
-        position: relative;
+        position: fixed;
+        left: 0;
+        top: 0;
         width: 100%;
-        height: auto;
-        flex-direction: row;
-        flex-wrap: wrap;
-        border-right: none;
-        border-bottom: 2px solid var(--border-brown);
+        max-width: 320px;
+        height: 100vh;
+        border-right: 2px solid var(--border-brown);
+        border-bottom: none;
+        transform: translateX(-100%);
+        box-shadow: 2px 0 8px rgba(0,0,0,0.3);
+    }
+
+    .sidebar.visible {
+        transform: translateX(0);
+    }
+
+    .input-area {
+        margin-left: 0;
+    }
+
+    .output-log {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 800px) {
+    .game-container {
+        flex-direction: column;
     }
 
     .main-content {
@@ -492,19 +563,85 @@ body {
         flex: 1;
         min-width: 200px;
     }
-}
 
-@media (max-width: 500px) {
-    .sidebar {
-        flex-direction: column;
+    .cmd-btn {
+        padding: 10px;
+        font-size: 13px;
     }
 
-    .panel-box {
-        width: 100%;
+    .output-log p {
+        font-size: 14px;
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .sidebar {
+        max-width: 85vw;
     }
 
     .quick-commands {
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .panel-box {
+        padding: 12px;
+    }
+
+    .stat-row {
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .stat-label {
+        min-width: 40px;
+    }
+
+    #terminal-input {
+        font-size: 14px;
+    }
+
+    .prompt {
+        font-size: 16px;
+    }
+
+    .game-title {
+        font-size: 24px;
+        letter-spacing: 4px;
+    }
+
+    .game-subtitle {
+        font-size: 13px;
+    }
+
+    .input-area {
+        padding: 12px 15px;
+        gap: 8px;
+    }
+
+    .output-log {
+        padding: 15px;
+    }
+}
+
+@media (max-width: 400px) {
+    .quick-commands {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar-toggle {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+    }
+
+    .panel-box h3 {
+        font-size: 10px;
+    }
+
+    .cmd-btn {
+        font-size: 12px;
+        padding: 8px;
     }
 }
 
