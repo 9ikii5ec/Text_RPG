@@ -7,123 +7,74 @@
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <!-- Toast уведомления -->
-    <div id="toast-container"></div>
-
     <div class="game-container">
+        <!-- БОКОВАЯ ПАНЕЛЬ -->
         <aside class="sidebar">
-            <div class="panel-box character-panel">
-                <h3>[ ПЕРСОНАЖ ]</h3>
+            <div class="panel-box">
+                <h3>[ Персонаж ]</h3>
                 <div class="stat-row">
                     <span class="stat-label">Имя:</span>
-                    <span id="char-name" class="stat-value">???</span>
+                    <span class="stat-value" id="char-name">???</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">Класс:</span>
-                    <span id="char-class" class="stat-value">???</span>
+                    <span class="stat-value" id="char-class">???</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">HP:</span>
-                    <span id="char-hp" class="stat-value">?/?</span>
-                    <div class="hp-bar"><div id="hp-fill" class="hp-fill" style="width: 100%"></div></div>
+                    <span class="stat-value" id="char-hp">?/?</span>
+                    <div class="hp-bar"><div class="hp-fill" id="hp-fill" style="width:0%"></div></div>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">Сила:</span>
-                    <span id="char-strength" class="stat-value">?</span>
+                    <span class="stat-value" id="char-strength">?</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">Удача:</span>
-                    <span id="char-luck" class="stat-value">?</span>
+                    <span class="stat-value" id="char-luck">?</span>
                 </div>
             </div>
-            
-            <div class="panel-box environment-panel">
-                <h3>[ ОКРУЖЕНИЕ ]</h3>
-                <p class="panel-subtitle">Существа рядом:</p>
-                <ul id="local-players" class="player-list">
-                    <li>Туман скрывает всё...</li>
-                </ul>
+
+            <div class="panel-box">
+                <h3>[ Окружение ]</h3>
+                <p style="font-size:12px; color:var(--text-sepia); font-style:italic;">
+                    Существа рядом:<br>
+                    Туман скрывает всё...
+                </p>
             </div>
-            
-            <div class="panel-box commands-panel">
-                <h3>[ БЫСТРЫЕ КОМАНДЫ ]</h3>
+
+            <div class="panel-box">
+                <h3>[ Быстрые команды ]</h3>
                 <div class="quick-commands">
-                    <!-- data-game-only: отключаются вне фазы GAME -->
-                    <button class="cmd-btn" data-cmd="осмотреться" data-game-only="true">Осмотреться</button>
-                    <button class="cmd-btn" data-cmd="инвентарь"   data-game-only="true">Инвентарь</button>
-                    <button class="cmd-btn" data-cmd="статус"      data-game-only="true">Статус</button>
-                    <button class="cmd-btn" data-cmd="карта"       data-game-only="true">Карта</button>
+                    <button class="cmd-btn" data-cmd="осмотреться">Осмотреться</button>
+                    <button class="cmd-btn" data-cmd="инвентарь">Инвентарь</button>
+                    <button class="cmd-btn" data-cmd="статус">Статус</button>
+                    <button class="cmd-btn" data-cmd="карта">Карта</button>
                     <button class="cmd-btn" data-cmd="помощь">Помощь</button>
                 </div>
             </div>
 
-            <div class="panel-box save-panel">
-                <h3>[ СОХРАНЕНИЯ ]</h3>
-
-                <div class="save-slot">
-                    <div class="slot-header">
-                        <span class="slot-name">Слот 1</span>
-                        <span class="slot-info" id="slot-info-1">— пусто —</span>
-                    </div>
-                    <div class="slot-btns">
-                        <button class="slot-btn save-btn" data-slot="1" data-game-only="true" disabled title="Сохранить в слот 1">Сохр.</button>
-                        <button class="slot-btn load-btn" data-slot="1" disabled title="Загрузить слот 1">Загр.</button>
-                    </div>
-                </div>
-
-                <div class="save-slot">
-                    <div class="slot-header">
-                        <span class="slot-name">Слот 2</span>
-                        <span class="slot-info" id="slot-info-2">— пусто —</span>
-                    </div>
-                    <div class="slot-btns">
-                        <button class="slot-btn save-btn" data-slot="2" data-game-only="true" disabled title="Сохранить в слот 2">Сохр.</button>
-                        <button class="slot-btn load-btn" data-slot="2" disabled title="Загрузить слот 2">Загр.</button>
-                    </div>
-                </div>
-
-                <div class="save-slot">
-                    <div class="slot-header">
-                        <span class="slot-name">Слот 3</span>
-                        <span class="slot-info" id="slot-info-3">— пусто —</span>
-                    </div>
-                    <div class="slot-btns">
-                        <button class="slot-btn save-btn" data-slot="3" data-game-only="true" disabled title="Сохранить в слот 3">Сохр.</button>
-                        <button class="slot-btn load-btn" data-slot="3" disabled title="Загрузить слот 3">Загр.</button>
-                    </div>
-                </div>
-
-                <div class="save-slot autosave-row">
-                    <div class="slot-header">
-                        <span class="slot-name">Авто</span>
-                        <span class="slot-info" id="slot-info-auto">— нет —</span>
-                    </div>
-                    <div class="slot-btns">
-                        <button class="slot-btn load-btn" id="btn-load-auto" disabled title="Загрузить автосохранение">Загр.</button>
-                    </div>
-                </div>
-
-                <button class="new-game-btn" id="btn-new-game">⟳ Новая игра</button>
+            <div class="panel-box">
+                <h3>[ Сохранения ]</h3>
+                <p style="font-size:12px; color:var(--text-sepia);">
+                    Слот 1 — пусто — <em>Сохр. / Загр.</em><br>
+                    Слот 2 — пусто — <em>Сохр. / Загр.</em><br>
+                    Слот 3 — пусто — <em>Сохр. / Загр.</em><br>
+                    Авто — нет — <em>Загр.</em> ⟳ Новая игра &gt;
+                </p>
             </div>
         </aside>
 
+        <!-- ОСНОВНОЙ ТЕРМИНАЛ -->
         <main class="main-content">
-            <div id="terminal-output" class="output-log"></div>
-            
+            <div class="output-log" id="terminal-output"></div>
             <div class="input-area">
                 <span class="prompt">&gt;</span>
-                <input type="text" 
-                       id="terminal-input" 
-                       autofocus 
-                       autocomplete="off" 
-                       autocorrect="off" 
-                       autocapitalize="off" 
-                       spellcheck="false"
-                       placeholder="Введи имя или команду...">
+                <input type="text" id="terminal-input" placeholder="введи команду..." autocomplete="off" spellcheck="false">
             </div>
         </main>
     </div>
-    
+
     <script src="js/game.js"></script>
 </body>
 </html>

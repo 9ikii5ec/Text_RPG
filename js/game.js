@@ -1,19 +1,18 @@
 /**
- * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║  VERMIS: ENDLESS PURGATORY — Finite State Machine Architecture           ║
- * ║  Подход: Deterministic Action Pipeline + Reducer + Event Sourcing        ║
- * ╚═══════════════════════════════════════════════════════════════════════════╝
- */
+╔═══════════════════════════════════════════════════════════════════════════╗
+║  VERMIS: ENDLESS PURGATORY — Finite State Machine Architecture           ║
+║  Подход: Deterministic Action Pipeline + Reducer + Event Sourcing        ║
+╚═══════════════════════════════════════════════════════════════════════════╝
+*/
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 1: СОСТОЯНИЕ (STATE) — Единственный источник правды
 // ═══════════════════════════════════════════════════════════════════════════════
-
 const InitialState = {
     // Meta
     phase: "CREATION_NAME", // CREATION_NAME | CREATION_CLASS | CREATION_CONFIRM | GAME | GAME_OVER
     turn: 0,
-    
+
     // Player
     player: {
         name: null,
@@ -27,20 +26,20 @@ const InitialState = {
         inventory: [],
         location: "glass_purgatory"
     },
-    
+
     // Temp creation state
     creation: {
         tempName: null,
         tempClass: null
     },
-    
+
     // World state
     world: {
         discoveredLocations: ["glass_purgatory"],
         killedEnemies: [],
         eventLog: []
     },
-    
+
     // UI state
     ui: {
         lastOutput: null,
@@ -56,14 +55,13 @@ function cloneState(state) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 2: ДЕЙСТВИЯ (ACTIONS) — Типизированные события
 // ═══════════════════════════════════════════════════════════════════════════════
-
 const ActionTypes = {
     // Creation
     SET_NAME: "SET_NAME",
-    SET_CLASS: "SET_CLASS", 
+    SET_CLASS: "SET_CLASS",
     CONFIRM_CHARACTER: "CONFIRM_CHARACTER",
     RESTART_CREATION: "RESTART_CREATION",
-    
+
     // Game
     MOVE: "MOVE",
     LOOK: "LOOK",
@@ -76,7 +74,7 @@ const ActionTypes = {
     SHOW_STATUS: "SHOW_STATUS",
     SHOW_MAP: "SHOW_MAP",
     SHOW_HELP: "SHOW_HELP",
-    
+
     // System
     UNKNOWN_COMMAND: "UNKNOWN_COMMAND",
     INVALID_INPUT: "INVALID_INPUT"
@@ -88,7 +86,6 @@ const Actions = {
     setClass: (classId) => ({ type: ActionTypes.SET_CLASS, payload: { classId } }),
     confirmCharacter: () => ({ type: ActionTypes.CONFIRM_CHARACTER }),
     restartCreation: () => ({ type: ActionTypes.RESTART_CREATION }),
-    
     move: (target) => ({ type: ActionTypes.MOVE, payload: { target } }),
     look: (target = null) => ({ type: ActionTypes.LOOK, payload: { target } }),
     examine: (target) => ({ type: ActionTypes.EXAMINE, payload: { target } }),
@@ -100,7 +97,7 @@ const Actions = {
     showStatus: () => ({ type: ActionTypes.SHOW_STATUS }),
     showMap: () => ({ type: ActionTypes.SHOW_MAP }),
     showHelp: () => ({ type: ActionTypes.SHOW_HELP }),
-    
+
     unknownCommand: (input) => ({ type: ActionTypes.UNKNOWN_COMMAND, payload: { input } }),
     invalidInput: (reason) => ({ type: ActionTypes.INVALID_INPUT, payload: { reason } })
 };
@@ -108,14 +105,12 @@ const Actions = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 3: РЕДУКТОР (REDUCER) — Чистая функция (state, action) → state
 // ═══════════════════════════════════════════════════════════════════════════════
-
 function reducer(state, action) {
     const newState = cloneState(state);
     newState.turn++;
-    
+
     switch (action.type) {
-        // ═─ CREATION PHASE ─═══════════════════════════════════════════
-        
+        // ═─ CREATION PHASE ─────────────────────────────────────────
         case ActionTypes.SET_NAME:
             if (!action.payload.name || action.payload.name.length < 2) {
                 newState.ui.lastOutput = {
@@ -140,7 +135,7 @@ function reducer(state, action) {
                 name: action.payload.name
             };
             return newState;
-            
+
         case ActionTypes.SET_CLASS:
             const classId = validateClassSelection(action.payload.classId);
             if (!classId) {
@@ -158,7 +153,7 @@ function reducer(state, action) {
                 classId: classId
             };
             return newState;
-            
+
         case ActionTypes.CONFIRM_CHARACTER:
             const classData = WorldDB.classes[newState.creation.tempClass];
             newState.player = {
@@ -181,17 +176,14 @@ function reducer(state, action) {
                 epithet: classData.epithet
             };
             return newState;
-            
+
         case ActionTypes.RESTART_CREATION:
             newState.creation = { tempName: null, tempClass: null };
             newState.phase = "CREATION_NAME";
-            newState.ui.lastOutput = {
-                type: "creation_restart"
-            };
+            newState.ui.lastOutput = { type: "creation_restart" };
             return newState;
-            
-        // ═─ GAME PHASE ─═══════════════════════════════════════════════
-        
+
+        // ═─ GAME PHASE ─────────────────────────────────────────────
         case ActionTypes.MOVE:
             return handleMove(newState, action.payload.target);
         case ActionTypes.LOOK:
@@ -226,7 +218,7 @@ function reducer(state, action) {
                 text: action.payload.reason
             };
             return newState;
-            
+
         default:
             return newState;
     }
@@ -235,7 +227,6 @@ function reducer(state, action) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 4: БАЗА ДАННЫХ МИРА
 // ═══════════════════════════════════════════════════════════════════════════════
-
 const WorldDB = {
     classes: {
         wayfarer: {
@@ -363,18 +354,17 @@ const WorldDB = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 5: ОБРАБОТЧИКИ ДЕЙСТВИЙ (Action Handlers)
 // ═══════════════════════════════════════════════════════════════════════════════
-
 function validateClassSelection(input) {
     const classKeys = Object.keys(WorldDB.classes);
     const lower = input.toLowerCase();
-    
+
     // По номеру
     const num = parseInt(input);
     if (num >= 1 && num <= classKeys.length) return classKeys[num - 1];
-    
+
     // По названию
-    return classKeys.find(k => 
-        k.includes(lower) || 
+    return classKeys.find(k =>
+        k.includes(lower) ||
         WorldDB.classes[k].name.toLowerCase().includes(lower) ||
         WorldDB.classes[k].nameEn.toLowerCase().includes(lower)
     );
@@ -385,37 +375,48 @@ function rollD20() {
 }
 
 function formatDiceResult(d20, modifier, total, dc, type) {
-    const colors = { critical_success: "#ffd700", success: "#2d5a27", failure: "#8b4500", critical_failure: "#8b2500" };
-    const labels = { critical_success: "КРИТИЧЕСКИЙ УСПЕХ", success: "УСПЕХ", failure: "ПРОВАЛ", critical_failure: "КРИТИЧЕСКИЙ ПРОВАЛ" };
+    const colors = {
+        critical_success: "#ffd700",
+        success: "#2d5a27",
+        failure: "#8b4500",
+        critical_failure: "#8b2500"
+    };
+    const labels = {
+        critical_success: "КРИТИЧЕСКИЙ УСПЕХ",
+        success: "УСПЕХ",
+        failure: "ПРОВАЛ",
+        critical_failure: "КРИТИЧЕСКИЙ ПРОВАЛ"
+    };
     return `<span style="color:${colors[type]}">[${labels[type]}] d20:${d20} + ${modifier} = ${total} (DC ${dc})</span>`;
 }
 
 function handleMove(state, target) {
     const loc = WorldDB.locations[state.player.location];
-    
+
     if (!target) {
         const exits = loc.exits.map(e => {
             const l = WorldDB.locations[e];
             const discovered = state.world.discoveredLocations.includes(e);
-            return `<strong>${e}</strong> (${discovered ? l.title : "???"})`;
+            const title = discovered ? l.title : "???";
+            return `<span class="clickable" data-cmd="идти ${e}">${title}</span>`;
         }).join(", ");
-        state.ui.lastOutput = { type: "info", text: `Доступные пути: ${exits}` };
+        state.ui.lastOutput = { type: "info_html", html: `Доступные пути: ${exits}` };
         return state;
     }
-    
+
     const targetLoc = loc.exits.find(e => e.toLowerCase().includes(target.toLowerCase()));
     if (!targetLoc) {
         state.ui.lastOutput = { type: "error", text: `Путь "${target}" закрыт. Туман скрывает этот маршрут.` };
         return state;
     }
-    
+
     const newLoc = WorldDB.locations[targetLoc];
     state.player.location = targetLoc;
-    
+
     if (!state.world.discoveredLocations.includes(targetLoc)) {
         state.world.discoveredLocations.push(targetLoc);
     }
-    
+
     state.ui.lastOutput = {
         type: "location",
         title: newLoc.title,
@@ -426,7 +427,7 @@ function handleMove(state, target) {
         npcs: newLoc.npcs,
         items: newLoc.items
     };
-    
+
     return state;
 }
 
@@ -435,7 +436,6 @@ function handleLook(state, target) {
         state.ui.lastOutput = { type: "hint", text: `Используй 'изучить ${target}' для детального осмотра.` };
         return state;
     }
-    
     const loc = WorldDB.locations[state.player.location];
     state.ui.lastOutput = {
         type: "location",
@@ -455,9 +455,8 @@ function handleExamine(state, target) {
         state.ui.lastOutput = { type: "hint", text: "Что изучить?" };
         return state;
     }
-    
     const loc = WorldDB.locations[state.player.location];
-    
+
     // Поиск среди NPC
     if (loc.npcs) {
         for (const [key, npc] of Object.entries(loc.npcs)) {
@@ -467,7 +466,7 @@ function handleExamine(state, target) {
             }
         }
     }
-    
+
     // Поиск среди предметов
     if (loc.items) {
         for (const itemKey of loc.items) {
@@ -477,7 +476,7 @@ function handleExamine(state, target) {
             }
         }
     }
-    
+
     state.ui.lastOutput = { type: "error", text: `Не вижу "${target}" здесь.` };
     return state;
 }
@@ -487,25 +486,24 @@ function handleTake(state, target) {
         state.ui.lastOutput = { type: "hint", text: "Что взять?" };
         return state;
     }
-    
     const loc = WorldDB.locations[state.player.location];
     if (!loc.items || loc.items.length === 0) {
         state.ui.lastOutput = { type: "info", text: "Здесь нечего брать." };
         return state;
     }
-    
+
     const itemIndex = loc.items.findIndex(i => i.includes(target.toLowerCase()));
     if (itemIndex === -1) {
         state.ui.lastOutput = { type: "error", text: `Не нахожу "${target}".` };
         return state;
     }
-    
+
     const itemKey = loc.items[itemIndex];
     const item = WorldDB.items[itemKey];
-    
+
     loc.items.splice(itemIndex, 1);
     state.player.inventory.push(item ? item.name : itemKey);
-    
+
     state.ui.lastOutput = { type: "success", text: `Взял: ${item ? item.name : itemKey}` };
     return state;
 }
@@ -515,13 +513,12 @@ function handleTalk(state, target) {
         state.ui.lastOutput = { type: "hint", text: "С кем говорить?" };
         return state;
     }
-    
     const loc = WorldDB.locations[state.player.location];
     if (!loc.npcs) {
         state.ui.lastOutput = { type: "info", text: "Не с кем говорить." };
         return state;
     }
-    
+
     for (const [key, npc] of Object.entries(loc.npcs)) {
         if (key.includes(target.toLowerCase()) || npc.name.toLowerCase().includes(target.toLowerCase())) {
             if (!npc.dialogue) {
@@ -533,7 +530,7 @@ function handleTalk(state, target) {
             return state;
         }
     }
-    
+
     state.ui.lastOutput = { type: "error", text: `"${target}" не найден.` };
     return state;
 }
@@ -543,28 +540,27 @@ function handleSteal(state, target) {
         state.ui.lastOutput = { type: "hint", text: "Кого обокрасть?" };
         return state;
     }
-    
     const loc = WorldDB.locations[state.player.location];
     if (!loc.npcs) {
         state.ui.lastOutput = { type: "info", text: "Некого обокрасть." };
         return state;
     }
-    
+
     for (const [key, npc] of Object.entries(loc.npcs)) {
         if (key.includes(target.toLowerCase()) || npc.name.toLowerCase().includes(target.toLowerCase())) {
             const dc = 12 + (loc.dc_modifier || 0);
             const d20 = rollD20();
             const total = d20 + state.player.luck;
-            
+
             let result;
             if (d20 === 20) result = "critical_success";
             else if (d20 === 1) result = "critical_failure";
             else if (total >= dc) result = "success";
             else result = "failure";
-            
+
             const diceText = formatDiceResult(d20, state.player.luck, total, dc, result);
             let responseText = diceText + "<br>";
-            
+
             switch (result) {
                 case "critical_success":
                     state.player.inventory.push("Серебряный осколок", "Странный ключ");
@@ -582,12 +578,12 @@ function handleSteal(state, target) {
                     responseText += `КОШМАР! ${npc.name} хватает тебя! -5 HP.`;
                     break;
             }
-            
+
             state.ui.lastOutput = { type: "dice_result", text: responseText };
             return state;
         }
     }
-    
+
     state.ui.lastOutput = { type: "error", text: `"${target}" не найден.` };
     return state;
 }
@@ -597,28 +593,27 @@ function handleAttack(state, target) {
         state.ui.lastOutput = { type: "hint", text: "Кого атаковать?" };
         return state;
     }
-    
     const loc = WorldDB.locations[state.player.location];
     if (!loc.npcs) {
         state.ui.lastOutput = { type: "info", text: "Нечего атаковать." };
         return state;
     }
-    
+
     for (const [key, npc] of Object.entries(loc.npcs)) {
         if (key.includes(target.toLowerCase()) || npc.name.toLowerCase().includes(target.toLowerCase())) {
             const dc = 10 + (loc.dc_modifier || 0);
             const d20 = rollD20();
             const total = d20 + state.player.strength;
-            
+
             let result;
             if (d20 === 20) result = "critical_success";
             else if (d20 === 1) result = "critical_failure";
             else if (total >= dc) result = "success";
             else result = "failure";
-            
+
             const diceText = formatDiceResult(d20, state.player.strength, total, dc, result);
             let responseText = diceText + "<br>";
-            
+
             switch (result) {
                 case "critical_success":
                     responseText += `ДЕВИТИРУЮЩИЙ УДАР! ${state.player.strength * 2 + 6} урона!`;
@@ -634,12 +629,12 @@ function handleAttack(state, target) {
                     responseText += `Ты оступаешься! -3 HP.`;
                     break;
             }
-            
+
             state.ui.lastOutput = { type: "dice_result", text: responseText };
             return state;
         }
     }
-    
+
     state.ui.lastOutput = { type: "error", text: `"${target}" не найден.` };
     return state;
 }
@@ -671,7 +666,12 @@ function handleStatus(state) {
 }
 
 function handleMap(state) {
-    state.ui.lastOutput = { type: "map", locations: WorldDB.locations, discovered: state.world.discoveredLocations, current: state.player.location };
+    state.ui.lastOutput = {
+        type: "map",
+        locations: WorldDB.locations,
+        discovered: state.world.discoveredLocations,
+        current: state.player.location
+    };
     return state;
 }
 
@@ -683,7 +683,6 @@ function handleHelp(state) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 6: ПАРСЕР ВВОДА
 // ═══════════════════════════════════════════════════════════════════════════════
-
 const VerbMap = {
     "идти": "move", "иду": "move", "пройти": "move",
     "осмотреться": "look", "осмотреть": "look", "смотреть": "look",
@@ -701,21 +700,20 @@ const VerbMap = {
 function parseInput(input, phase) {
     const trimmed = input.trim();
     if (!trimmed) return null;
-    
     const lower = trimmed.toLowerCase();
     const tokens = lower.split(/\s+/);
     const verb = tokens[0];
     const target = tokens.slice(1).join(" ");
-    
+
     // В фазе создания персонажа — только ввод текста
     if (phase === "CREATION_NAME") {
         return Actions.setName(trimmed);
     }
-    
+
     if (phase === "CREATION_CLASS") {
         return Actions.setClass(trimmed);
     }
-    
+
     if (phase === "CREATION_CONFIRM") {
         if (lower === "да" || lower === "yes" || lower === "y") {
             return Actions.confirmCharacter();
@@ -725,10 +723,10 @@ function parseInput(input, phase) {
         }
         return Actions.invalidInput("Напиши 'да' или 'нет'.");
     }
-    
+
     // В фазе игры — парсинг команд
     const actionType = VerbMap[verb];
-    
+
     switch (actionType) {
         case "move": return Actions.move(target);
         case "look": return Actions.look(target);
@@ -748,116 +746,130 @@ function parseInput(input, phase) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 7: РЕНДЕРЕР (VIEW) — Отображение состояния
 // ═══════════════════════════════════════════════════════════════════════════════
-
 const Renderer = {
     outputEl: null,
-    
+
     init(outputEl) {
         this.outputEl = outputEl;
     },
-    
+
     render(state) {
         const output = state.ui.lastOutput;
         if (!output) return;
-        
+
         let html = "";
-        
+
         switch (output.type) {
             case "error":
                 html = `<p class="error-msg">${output.text}</p>`;
                 break;
-                
+
             case "warning":
                 html = `<p class="warning-msg">${output.text}</p>`;
                 break;
-                
+
             case "hint":
                 html = `<p class="hint-msg">${output.text}</p>`;
                 break;
-                
+
             case "info":
                 html = `<p class="info-msg">${output.text}</p>`;
                 break;
-                
+
+            case "info_html":
+                html = `<p class="info-msg">${output.html}</p>`;
+                break;
+
             case "success":
                 html = `<p class="success-msg">${output.text}</p>`;
                 break;
-                
+
             case "class_selection":
                 html = this.renderClassSelection(output.name);
                 break;
-                
+
             case "class_confirm":
                 html = this.renderClassConfirm(output.name, output.classId);
                 break;
-                
+
             case "game_start":
                 html = this.renderGameStart(output.name, output.className, output.epithet);
                 break;
-                
+
             case "creation_restart":
                 html = this.renderCreationRestart();
                 break;
-                
+
             case "location":
                 html = this.renderLocation(output);
                 break;
-                
+
             case "examine_npc":
                 html = `<p><strong>${output.npc.name}</strong></p><p>${output.npc.description}</p><p class="info-msg">[СТАТУС]: ${output.npc.status}</p>`;
                 break;
-                
+
             case "examine_item":
                 html = `<p><strong>${output.item.name}</strong></p><p>${output.item.description}</p>`;
                 break;
-                
+
             case "dialogue":
                 html = `<p class="npc-name">${output.npc}:</p><p>"${output.text}"</p>`;
                 break;
-                
+
             case "dice_result":
                 html = `<p>${output.text}</p>`;
                 break;
-                
+
             case "inventory":
                 html = this.renderInventory(output.items);
                 break;
-                
+
             case "status":
                 html = this.renderStatus(output);
                 break;
-                
+
             case "map":
                 html = this.renderMap(output);
                 break;
-                
+
             case "help":
                 html = this.renderHelp();
                 break;
         }
-        
+
         if (html) {
             this.print(html);
             this.scrollToBottom();
         }
     },
-    
+
     print(html) {
         const p = document.createElement("div");
         p.className = "output-block";
         p.innerHTML = html;
         this.outputEl.appendChild(p);
+        // Камера следит за строкой ввода - скролим после рендера
+        this.scrollToInputArea();
     },
-    
+
     scrollToBottom() {
-        this.outputEl.scrollTop = this.outputEl.scrollHeight;
+        // Для совместимости, вызывает то же самое
+        this.scrollToInputArea();
     },
-    
+
+    scrollToInputArea() {
+        // Скролим output-log вниз
+        const outputLog = document.querySelector(".output-log");
+        if (outputLog) {
+            outputLog.scrollTop = outputLog.scrollHeight;
+        }
+    },
+
     renderClassSelection(name) {
         let html = `<p class="system-msg">═══ КТО ТЫ? ═══</p>`;
         html += `<p>Имя: <strong>${name}</strong></p>`;
         html += `<p>Выбери, кем ты был до того, как оказался здесь:</p>`;
-        
+
         const classes = Object.entries(WorldDB.classes);
         classes.forEach(([key, data], i) => {
             html += `<div class="class-option">`;
@@ -866,11 +878,11 @@ const Renderer = {
             html += `<p class="class-desc">${data.description}</p>`;
             html += `</div>`;
         });
-        
+
         html += `<p class="hint-msg">Введи номер или название класса:</p>`;
         return html;
     },
-    
+
     renderClassConfirm(name, classId) {
         const c = WorldDB.classes[classId];
         let html = `<p class="system-msg">═══ ПОСЛЕДНИЙ ШАГ ═══</p>`;
@@ -881,42 +893,60 @@ const Renderer = {
         html += `<p class="hint-msg">Напиши 'да' чтобы подтвердить, или 'нет' чтобы выбрать другой класс.</p>`;
         return html;
     },
-    
+
     renderGameStart(name, className, epithet) {
         let html = `<p class="system-msg">═══ ДА БУДЕТ ТАК ═══</p>`;
         html += `<p>${name}, ${epithet}.</p>`;
         html += `<p>Твоё путешествие начинается в Стеклянном Чистилище.</p>`;
-        html += `<p class="hint-msg">Введи 'осмотреться' чтобы осмотреться, или 'помощь' для списка команд.</p>`;
+        html += `<p class="hint-msg">Кликай по выделенным словам или введи 'осмотреться'.</p>`;
         return html;
     },
-    
+
     renderCreationRestart() {
         return `<p class="info-msg">Начнём сначала. Как тебя зовут, странник?</p>`;
     },
-    
+
     renderLocation(data) {
         let html = `<p class="system-msg">═══ ${data.title} ═══</p>`;
         html += `<p class="location-en">(${data.titleEn})</p>`;
         html += `<p>${data.description}</p>`;
         html += `<p class="atmosphere">${data.atmosphere}</p>`;
-        
+
+        // NPC — кликабельные (talk)
         if (data.npcs && Object.keys(data.npcs).length > 0) {
-            html += `<p class="info-msg">[СУЩНОСТИ]: ${Object.values(data.npcs).map(n => n.name).join(", ")}</p>`;
+            const npcLinks = Object.entries(data.npcs).map(([key, n]) =>
+                `<span class="clickable" data-cmd="говорить ${key}">${n.name}</span>`
+            ).join(", ");
+            html += `<p class="info-msg">[СУЩНОСТИ]: ${npcLinks}</p>`;
         }
+
+        // Предметы — кликабельные (take)
         if (data.items && data.items.length > 0) {
-            html += `<p class="info-msg">[ПРЕДМЕТЫ]: ${data.items.join(", ")}</p>`;
+            const itemLinks = data.items.map(iKey => {
+                const item = WorldDB.items[iKey];
+                const name = item ? item.name : iKey;
+                return `<span class="clickable" data-cmd="взять ${iKey}">${name}</span>`;
+            }).join(", ");
+            html += `<p class="info-msg">[ПРЕДМЕТЫ]: ${itemLinks}</p>`;
         }
-        html += `<p class="info-msg">[ПУТИ]: ${data.exits.join(" | ")}</p>`;
-        
+
+        // Пути — кликабельные (move)
+        const exitLinks = data.exits.map(e => {
+            const l = WorldDB.locations[e];
+            const title = l ? l.title : e;
+            return `<span class="clickable" data-cmd="идти ${e}">${title}</span>`;
+        }).join(" | ");
+        html += `<p class="info-msg">[ПУТИ]: ${exitLinks}</p>`;
+
         return html;
     },
-    
+
     renderInventory(items) {
         let html = `<p class="system-msg">═══ ИНВЕНТАРЬ ═══</p>`;
         items.forEach((item, i) => html += `<p>${i + 1}. ${item}</p>`);
         return html;
     },
-    
+
     renderStatus(data) {
         let html = `<p class="system-msg">═══ ${data.name} ═══</p>`;
         html += `<p class="info-msg">${data.className} — ${data.epithet}</p>`;
@@ -924,13 +954,13 @@ const Renderer = {
         html += `<p>Сила: ${data.strength} | Ловкость: ${data.agility} | Удача: ${data.luck} | Мудрость: ${data.wisdom}</p>`;
         return html;
     },
-    
+
     renderMap(data) {
         let html = `<p class="system-msg">═══ КАРТА ═══</p>`;
         Object.values(data.locations).forEach(loc => {
             const isCurrent = loc.id === data.current;
             const discovered = data.discovered.includes(loc.id);
-            
+
             if (isCurrent) {
                 html += `<p class="success-msg">★ ${loc.title}</p>`;
             } else if (discovered) {
@@ -939,7 +969,7 @@ const Renderer = {
         });
         return html;
     },
-    
+
     renderHelp() {
         let html = `<p class="system-msg">═══ КОМАНДЫ ═══</p>`;
         html += `<p><strong>ПЕРЕДВИЖЕНИЕ:</strong></p>`;
@@ -956,20 +986,21 @@ const Renderer = {
         html += `<p>• статус — характеристики</p>`;
         html += `<p>• карта — карта посещённых мест</p>`;
         html += `<p>• помощь — эта справка</p>`;
+        html += `<p class="hint-msg">Совет: кликай по выделенным словам в тексте — это быстро вызывает нужную команду.</p>`;
         return html;
     },
-    
+
     updateSidebar(state) {
         // Имя
         const nameEl = document.getElementById("char-name");
         if (nameEl) nameEl.textContent = state.player.name || "???";
-        
+
         // Класс
         const classEl = document.getElementById("char-class");
         if (classEl) {
             classEl.textContent = state.player.class ? WorldDB.classes[state.player.class].name : "???";
         }
-        
+
         // HP
         const hpEl = document.getElementById("char-hp");
         const hpFill = document.getElementById("hp-fill");
@@ -978,11 +1009,11 @@ const Renderer = {
             const percent = (state.player.hp / state.player.maxHp) * 100;
             if (hpFill) hpFill.style.width = `${percent}%`;
         }
-        
+
         // Сила
         const strEl = document.getElementById("char-strength");
         if (strEl) strEl.textContent = state.player.strength || "?";
-        
+
         // Удача
         const luckEl = document.getElementById("char-luck");
         if (luckEl) luckEl.textContent = state.player.luck || "?";
@@ -992,17 +1023,16 @@ const Renderer = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 8: ЗВУКОВАЯ СИСТЕМА
 // ═══════════════════════════════════════════════════════════════════════════════
-
 const Audio = {
     context: null,
     enabled: true,
-    
+
     init() {
         try {
             this.context = new (window.AudioContext || window.webkitAudioContext)();
-        } catch(e) {}
+        } catch (e) { }
     },
-    
+
     play(freq, dur, type = 'sine', vol = 0.15) {
         if (!this.enabled || !this.context) return;
         try {
@@ -1016,19 +1046,21 @@ const Audio = {
             gain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + dur);
             osc.start();
             osc.stop(this.context.currentTime + dur);
-        } catch(e) {}
+        } catch (e) { }
     },
-    
+
     hover() { this.play(600, 0.03, 'sine', 0.05); },
     click() { this.play(400, 0.08, 'square', 0.1); },
-    success() { this.play(523, 0.1, 'sine', 0.1); setTimeout(() => this.play(659, 0.1, 'sine', 0.1), 80); },
+    success() {
+        this.play(523, 0.1, 'sine', 0.1);
+        setTimeout(() => this.play(659, 0.1, 'sine', 0.1), 80);
+    },
     error() { this.play(200, 0.15, 'sawtooth', 0.15); }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 9: ИГРОВОЙ КОНТРОЛЛЕР (Controller) — Dispatcher + Event Loop
 // ═══════════════════════════════════════════════════════════════════════════════
-
 const Game = {
     state: null,
     inputEl: null,
@@ -1036,16 +1068,16 @@ const Game = {
     historyIndex: 0,
     autoCompleteMatches: [],
     autoCompleteIndex: 0,
-    
+
     init(inputEl, outputEl) {
         this.state = cloneState(InitialState);
         this.inputEl = inputEl;
         Renderer.init(outputEl);
-        
+
         this.bindEvents();
         this.renderWelcome();
     },
-    
+
     bindEvents() {
         this.inputEl.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
@@ -1062,37 +1094,37 @@ const Game = {
                 this.autoComplete();
             }
         });
-        
+
         this.inputEl.addEventListener("input", () => {
             this.autoCompleteIndex = 0;
             this.autoCompleteMatches = [];
         });
     },
-    
+
     dispatch(input) {
         const trimmed = input.trim();
         if (!trimmed) return;
-        
+
         // Сохранить в историю
         this.history.push(trimmed);
         this.historyIndex = this.history.length;
-        
+
         // Вывести ввод пользователя
         Renderer.print(`<p class="user-input">&gt; ${trimmed}</p>`);
-        
+
         // Парсинг и редьюс
         const action = parseInput(trimmed, this.state.phase);
-        
+
         if (action) {
             // Применить редьюсер
             this.state = reducer(this.state, action);
-            
+
             // Рендер результата
             Renderer.render(this.state);
-            
+
             // Обновить sidebar
             Renderer.updateSidebar(this.state);
-            
+
             // Звук
             if (this.state.ui.lastOutput) {
                 if (this.state.ui.lastOutput.type === "error") Audio.error();
@@ -1100,41 +1132,41 @@ const Game = {
                 else Audio.click();
             }
         }
-        
+
         // Очистить ввод
         this.inputEl.value = "";
     },
-    
+
     navigateHistory(dir) {
         const idx = this.historyIndex + dir;
         if (idx < 0 || idx > this.history.length) return;
         this.historyIndex = idx;
         this.inputEl.value = idx === this.history.length ? "" : this.history[idx];
     },
-    
+
     autoComplete() {
         const input = this.inputEl.value.trim();
         if (!input) return;
-        
+
         const words = input.split(" ");
         const last = words[words.length - 1];
-        
+
         if (this.autoCompleteMatches.length === 0) {
             this.autoCompleteMatches = Object.keys(VerbMap).filter(v => v.startsWith(last.toLowerCase()));
             this.autoCompleteIndex = 0;
         }
-        
+
         if (this.autoCompleteMatches.length === 0) return;
-        
+
         words[words.length - 1] = this.autoCompleteMatches[this.autoCompleteIndex % this.autoCompleteMatches.length];
         this.autoCompleteIndex++;
         this.inputEl.value = words.join(" ");
     },
-    
+
     renderWelcome() {
         let html = `<div class="welcome-screen">`;
         html += `<p class="game-title">V E R M I S</p>`;
-        html += `<p class="game-subtitle">M I S T  &  M I R R O R S</p>`;
+        html += `<p class="game-subtitle">M I S T   &   M I R R O R S</p>`;
         html += `<p class="game-version">Text-RPG Prototype v3.1</p>`;
         html += `<br>`;
         html += `<p class="welcome-text">Стеклянное Чистилище ждёт.</p>`;
@@ -1146,11 +1178,11 @@ const Game = {
         html += `<p class="prompt-text">Ты не помнишь своего имени. Но ты должен его назвать.</p>`;
         html += `<p class="hint-msg">Введи имя персонажа:</p>`;
         html += `</div>`;
-        
+
         Renderer.print(html);
     },
-    
-    // Для кнопок
+
+    // Для кнопок и кликабельных слов
     executeCommand(cmd) {
         this.inputEl.value = cmd;
         this.dispatch(cmd);
@@ -1160,45 +1192,58 @@ const Game = {
 // ═══════════════════════════════════════════════════════════════════════════════
 // РАЗДЕЛ 10: ИНИЦИАЛИЗАЦИЯ
 // ═══════════════════════════════════════════════════════════════════════════════
-
 document.addEventListener("DOMContentLoaded", () => {
     const inputEl = document.getElementById("terminal-input");
     const outputEl = document.getElementById("terminal-output");
-    
+
     if (!inputEl || !outputEl) {
         console.error("DOM elements not found");
         return;
     }
-    
+
     // Инициализация аудио при первом клике
     document.addEventListener("click", () => {
         if (!Audio.context) Audio.init();
     }, { once: true });
-    
+
+    // Делегирование кликов по интерактивным словам (.clickable)
+    document.addEventListener("click", (e) => {
+        const target = e.target.closest(".clickable");
+        if (target) {
+            const cmd = target.getAttribute("data-cmd");
+            if (cmd) {
+                Audio.click();
+                Game.executeCommand(cmd);
+            }
+        }
+    });
+
     // Инициализация игры
     Game.init(inputEl, outputEl);
-    
-    // Инициализация кнопок
+
+    // Инициализация кнопок быстрых команд
     document.querySelectorAll(".cmd-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             Audio.click();
             const cmd = btn.getAttribute("data-cmd");
             if (cmd) Game.executeCommand(cmd);
         });
-        
+
         btn.addEventListener("mouseenter", () => {
             Audio.hover();
         });
     });
-    
+
     // Фокус на ввод
     inputEl.focus();
 });
 
-// Фокус при клике на терминал
+// Фокус при клике на терминал (игнорируем кнопки и кликабельные слова)
 document.addEventListener("click", (e) => {
     const inputEl = document.getElementById("terminal-input");
-    if (inputEl && e.target !== inputEl && !e.target.classList.contains("cmd-btn")) {
-        inputEl.focus();
-    }
+    if (!inputEl) return;
+    if (e.target === inputEl) return;
+    if (e.target.classList.contains("cmd-btn")) return;
+    if (e.target.closest && e.target.closest(".clickable")) return;
+    inputEl.focus();
 });
