@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VERMIS: Mist & Mirrors</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-    <div class="crt-overlay"></div>
-    
+    <!-- Toast уведомления -->
+    <div id="toast-container"></div>
+
     <div class="game-container">
         <aside class="sidebar">
             <div class="panel-box character-panel">
@@ -47,12 +48,62 @@
             <div class="panel-box commands-panel">
                 <h3>[ БЫСТРЫЕ КОМАНДЫ ]</h3>
                 <div class="quick-commands">
-                    <button class="cmd-btn" data-cmd="осмотреться">Осмотреться</button>
-                    <button class="cmd-btn" data-cmd="инвентарь">Инвентарь</button>
-                    <button class="cmd-btn" data-cmd="статус">Статус</button>
-                    <button class="cmd-btn" data-cmd="карта">Карта</button>
+                    <!-- data-game-only: отключаются вне фазы GAME -->
+                    <button class="cmd-btn" data-cmd="осмотреться" data-game-only="true">Осмотреться</button>
+                    <button class="cmd-btn" data-cmd="инвентарь"   data-game-only="true">Инвентарь</button>
+                    <button class="cmd-btn" data-cmd="статус"      data-game-only="true">Статус</button>
+                    <button class="cmd-btn" data-cmd="карта"       data-game-only="true">Карта</button>
                     <button class="cmd-btn" data-cmd="помощь">Помощь</button>
                 </div>
+            </div>
+
+            <div class="panel-box save-panel">
+                <h3>[ СОХРАНЕНИЯ ]</h3>
+
+                <div class="save-slot">
+                    <div class="slot-header">
+                        <span class="slot-name">Слот 1</span>
+                        <span class="slot-info" id="slot-info-1">— пусто —</span>
+                    </div>
+                    <div class="slot-btns">
+                        <button class="slot-btn save-btn" data-slot="1" data-game-only="true" disabled title="Сохранить в слот 1">Сохр.</button>
+                        <button class="slot-btn load-btn" data-slot="1" disabled title="Загрузить слот 1">Загр.</button>
+                    </div>
+                </div>
+
+                <div class="save-slot">
+                    <div class="slot-header">
+                        <span class="slot-name">Слот 2</span>
+                        <span class="slot-info" id="slot-info-2">— пусто —</span>
+                    </div>
+                    <div class="slot-btns">
+                        <button class="slot-btn save-btn" data-slot="2" data-game-only="true" disabled title="Сохранить в слот 2">Сохр.</button>
+                        <button class="slot-btn load-btn" data-slot="2" disabled title="Загрузить слот 2">Загр.</button>
+                    </div>
+                </div>
+
+                <div class="save-slot">
+                    <div class="slot-header">
+                        <span class="slot-name">Слот 3</span>
+                        <span class="slot-info" id="slot-info-3">— пусто —</span>
+                    </div>
+                    <div class="slot-btns">
+                        <button class="slot-btn save-btn" data-slot="3" data-game-only="true" disabled title="Сохранить в слот 3">Сохр.</button>
+                        <button class="slot-btn load-btn" data-slot="3" disabled title="Загрузить слот 3">Загр.</button>
+                    </div>
+                </div>
+
+                <div class="save-slot autosave-row">
+                    <div class="slot-header">
+                        <span class="slot-name">Авто</span>
+                        <span class="slot-info" id="slot-info-auto">— нет —</span>
+                    </div>
+                    <div class="slot-btns">
+                        <button class="slot-btn load-btn" id="btn-load-auto" disabled title="Загрузить автосохранение">Загр.</button>
+                    </div>
+                </div>
+
+                <button class="new-game-btn" id="btn-new-game">⟳ Новая игра</button>
             </div>
         </aside>
 
@@ -73,6 +124,6 @@
         </main>
     </div>
     
-    <script src="../js/game.js"></script>
+    <script src="js/game.js"></script>
 </body>
 </html>
