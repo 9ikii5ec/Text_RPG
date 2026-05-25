@@ -135,6 +135,9 @@ function resolveTarget(state, parsed) {
     const loc = getCurrentLocation(state);
     const targetText = parsed.targetText;
     if (!targetText) return { kind: "none", id: null, name: null, tags: [] };
+    if (["wear", "remove", "drop"].includes(parsed.verb.id)) {
+        return { kind: "none", id: null, name: targetText, tags: [] };
+    }
     if (parsed.verb.defaultTarget === "location_exit" || parsed.verb.id === "move") {
         const exit = (loc.exits || []).find((candidate) => {
             const targetLoc = WorldDB.locations[candidate.target];
@@ -427,7 +430,7 @@ function reduceWorldAction(state, payload) {
     const verbId = parsed.verb.id;
     if (verbId === "examine") return reduceExamine(state, target);
     if (verbId === "move") return reduceMove(state, target, rule, dice, payload.transitId);
-    if (verbId === "take") return reduceTake(state, target, rule, dice);
+    if (verbId === "take") return reduceTake(state, target, rule, dice, parsed);
     if (verbId === "talk") return reduceTalk(state, target);
     if (["threaten"].includes(verbId)) return reduceSocialRoll(state, target, rule, dice, verbId);
     if (verbId === "steal") return reduceSteal(state, target, rule, dice);
@@ -473,7 +476,52 @@ function reduceMove(state, target, rule, dice, transitId) {
     state.ui.lastOutput = { type: "transit_started", targetId: target.id, label: target.name, durationSeconds, dice, text: rule.successText };
     return tick(state, WorldDB.settings.turnMinutes);
 }
-function reduceTake(state, target, rule, dice) {
+function reduceTake(state, target, rule, dice, parsed) {
+    if (state.player.searchingCorpse) {
+        const corpseId = state.player.searchingCorpse;
+        const corpseEntity = WorldDB.entities[corpseId];
+        const eState = getEntityState(state, corpseId);
+        if (!corpseEntity || !eState.isDead) { state.player.searchingCorpse = null; }
+        else {
+            const availableLoot = (corpseEntity.loot || []).filter((id) => WorldDB.entities[id] && !state.player.inventory.includes(id));
+            if (!availableLoot.length) {
+                state.player.searchingCorpse = null;
+                state.ui.lastOutput = { type: "info", text: `С трупа ${corpseEntity.name} больше нечего взять.` };
+                return tick(state, 0);
+            }
+            const q = normalize(parsed?.targetText || "");
+            if (q === "всё" || q === "все") {
+                availableLoot.forEach((id) => { state.player.inventory.push(id); if (state.world.entities[id]) state.world.entities[id].location = "inventory"; });
+                state.player.searchingCorpse = null;
+                const cursed = applyCursedRelic(state, corpseEntity);
+                let text = `Взято всё: ${availableLoot.map((id) => WorldDB.entities[id].name).join(", ")}.`;
+                if (cursed) text += ` Среди вещей ты находишь: ${cursed.name}.`;
+                state.ui.lastOutput = { type: "success", text };
+                return tick(state, WorldDB.settings.turnMinutes);
+            }
+            const num = parseInt(q, 10);
+            const matched = num >= 1 && num <= availableLoot.length
+                ? availableLoot[num - 1]
+                : availableLoot.find((id) => {
+                      const ent = WorldDB.entities[id];
+                      return ent && [ent.id, ent.name, ...(ent.aliases || [])].map(normalize).some((n) => n === q || n.includes(q) || q.includes(n));
+                  });
+            if (!matched) {
+                const lootList = availableLoot.map((id, i) => `${i + 1}. ${WorldDB.entities[id].name}`).join("; ");
+                state.ui.lastOutput = { type: "warning", text: `На теле ${corpseEntity.name}: ${lootList}. Напиши номер или название.` };
+                return tick(state, 0);
+            }
+            state.player.inventory.push(matched);
+            if (state.world.entities[matched]) state.world.entities[matched].location = "inventory";
+            const remaining = availableLoot.filter((id) => id !== matched);
+            state.player.searchingCorpse = remaining.length ? corpseId : null;
+            const cursed = applyCursedRelic(state, corpseEntity);
+            let text = `Взято: ${WorldDB.entities[matched]?.name || matched}.`;
+            if (cursed) text += ` Среди вещей ты находишь: ${cursed.name}.`;
+            state.ui.lastOutput = { type: "success", text };
+            return tick(state, WorldDB.settings.turnMinutes);
+        }
+    }
     if (target.kind === "none") { state.ui.lastOutput = { type: "hint", text: "Что взять?" }; return tick(state, 0); }
     if (target.kind !== "item") { state.ui.lastOutput = { type: "warning", text: `${target.name} не выглядит предметом, который можно просто забрать.` }; return tick(state, WorldDB.settings.turnMinutes); }
     if (dice && ["failure", "critical_failure"].includes(dice.grade)) { const damage = dice.grade === "critical_failure" ? 4 : 1; state.player.hp = Math.max(0, state.player.hp - damage); state.ui.lastOutput = { type: "dice_result", dice, text: `${rule.failureText} Ты теряешь ${damage} HP.` }; return tick(state, WorldDB.settings.turnMinutes); }
@@ -609,22 +657,10 @@ function reduceSearch(state, target, rule, dice) {
         state.ui.lastOutput = { type: "info", text: `Тело ${entity.name} не хранит ничего ценного.` };
         return tick(state, WorldDB.settings.turnMinutes);
     }
-    if (state.player.searchingCorpse === target.id) {
-        const success = dice && ["success", "critical_success"].includes(dice.grade);
-        const items = availableLoot.slice(0, success ? (dice.grade === "critical_success" ? availableLoot.length : 2) : 1);
-        items.forEach((id) => { state.player.inventory.push(id); if (state.world.entities[id]) state.world.entities[id].location = "inventory"; });
-        const remaining = availableLoot.filter((id) => !items.includes(id));
-        state.player.searchingCorpse = remaining.length ? target.id : null;
-        let text = `${rule.successText} Взято: ${items.map((id) => WorldDB.entities[id].name).join(", ")}.`;
-        if (remaining.length) text += ` Осталось: ${remaining.map((id) => WorldDB.entities[id].name).join(", ")}.`;
-        const cursed = applyCursedRelic(state, entity);
-        if (cursed) text += ` Среди вещей ты находишь: ${cursed.name}.`;
-        state.ui.lastOutput = { type: "dice_result", dice, text };
-        return tick(state, WorldDB.settings.turnMinutes);
-    }
     state.player.searchingCorpse = target.id;
-    state.ui.lastOutput = { type: "info", text: `Ты приседаешь над телом ${entity.name}. На теле: ${availableLoot.map((id) => WorldDB.entities[id].name).join(", ")}. Обыскать ещё раз, чтобы взять?` };
-    return tick(state, WorldDB.settings.turnMinutes);
+    const lootList = availableLoot.map((id, i) => `${i + 1}. ${WorldDB.entities[id].name}`).join("; ");
+    state.ui.lastOutput = { type: "info", text: `Ты приседаешь над телом ${entity.name}. На теле: ${lootList}. Напиши "взять [номер или название]" или "взять всё".` };
+    return tick(state, 0);
 }
 
 const SlotMap = { weapon: "weapon", helmet: "helmet", armor: "armor", amulet: "amulet", charm: "amulet" };
@@ -851,6 +887,13 @@ class MockServer {
         if (!parsedAction) return state;
         if (parsedAction.type !== "PARSED") return reducer(state, parsedAction);
         const parsed = parsedAction.payload;
+        if (parsed.verb.id === "take" && state.player.searchingCorpse) {
+            const next = cloneState(state);
+            next.ui.lastOutput = null;
+            const result = reducer(next, { type: "WORLD_ACTION", payload: { parsed, target: { kind: "corpse_item", id: null, name: parsed.targetText, tags: [] }, rule: null, dice: null } });
+            this.scheduleIfNeeded(result);
+            return result;
+        }
         const target = resolveTarget(state, parsed);
         const rule = findRule(parsed, target);
         const validation = validatePipeline(state, parsed, target, rule);
@@ -921,6 +964,17 @@ function get_available_actions(state = GlobalState) {
         if (state.player.inventory.length) {
             commands.push("выбросить [предмет]", "надеть [предмет]");
             commands.push("снять weapon", "снять helmet", "снять armor", "снять amulet");
+        }
+        if (state.player.searchingCorpse) {
+            const corpseEntity = WorldDB.entities[state.player.searchingCorpse];
+            const eState = getEntityState(state, state.player.searchingCorpse);
+            if (corpseEntity && eState.isDead) {
+                const loot = (corpseEntity.loot || []).filter(id => WorldDB.entities[id] && !state.player.inventory.includes(id));
+                loot.forEach((id) => commands.push(`взять ${WorldDB.entities[id]?.name || id}`));
+                if (loot.length > 1) commands.push("взять всё");
+            } else {
+                state.player.searchingCorpse = null;
+            }
         }
         const curLocTags = getCurrentLocation(state).tags || [];
         if (curLocTags.some(t => ["city", "holy", "camp", "safe", "tavern"].includes(t))) commands.push("отдохнуть");
