@@ -1,0 +1,23 @@
+{
+  "id": "movement_actions",
+  "verbs": [
+    {"id": "move", "words": ["идти", "пойти", "пройти", "двигаться", "перейти"], "tags": ["physical_movement"], "defaultTarget": "location_exit"},
+    {"id": "look", "words": ["осмотреться", "смотреть", "осмотреть"], "tags": ["perception"]},
+    {"id": "examine", "words": ["изучить", "рассмотреть", "осмотреть_объект"], "tags": ["perception"], "defaultTarget": "visible_entity"},
+    {"id": "take", "words": ["взять", "поднять", "забрать"], "tags": ["physical_manipulation"], "defaultTarget": "item"},
+    {"id": "jump", "words": ["прыгнуть", "скакнуть"], "tags": ["physical_movement"]},
+    {"id": "open", "words": ["открыть", "активировать"], "tags": ["physical_manipulation", "mechanism"], "defaultTarget": "visible_entity"}
+  ],
+  "rules": [
+    {"id": "move_exit", "verb": "move", "targetKind": "location_exit", "stat": "agility", "difficulty": 10, "dice": "hazard", "timeCostMinutes": 20, "successText": "Ты выбираешь путь и уходишь в жаркое марево.", "failureText": "Песок спорит с каждым шагом, но путь ещё можно удержать.", "criticalFailureText": "Пустыня резко проваливается под ногой."},
+    {"id": "look_room", "verb": "look", "targetKind": "none"},
+    {"id": "examine_entity", "verb": "examine", "targetKind": "any"},
+    {"id": "take_item", "verb": "take", "targetKind": "item", "stat": "agility", "difficulty": 8, "dice": "dangerous_location", "successText": "Предмет оказывается у тебя.", "failureText": "Ты медлишь, и место отвечает недобрым скрипом."},
+    {"id": "open_tool", "verb": "open", "targetKind": "item", "requiredTags": ["key", "lore"], "stat": "wisdom", "difficulty": 14, "dice": "always", "successText": "Скрытый механизм нехотя поддаётся.", "failureText": "Камень молчит, а в тишине становится слышно что-то ещё."}
+  ],
+  "fallbacks": [
+    {"verbTags": ["physical_movement"], "targetTags": ["peaceful_npc"], "text": "Ты неловко двигаешься в сторону {target}. {target} провожает тебя недоуменным, всё ещё недоверчивым взглядом."},
+    {"verbTags": ["physical_movement"], "targetTags": ["guard"], "text": "Ты делаешь резкое движение рядом с {target}. Копьё тут же поворачивается остриём к твоему горлу."},
+    {"verbTags": ["physical_manipulation"], "targetTags": ["humanoid"], "text": "Ты тянешься к {target}, но чужая рука уже лежит на оружии. В Агеруте не любят прикосновений без цены."}
+  ]
+}

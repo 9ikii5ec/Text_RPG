@@ -1,1323 +1,724 @@
-/**
-╔═══════════════════════════════════════════════════════════════════════════╗
-║  VERMIS: ENDLESS PURGATORY — Finite State Machine Architecture           ║
-║  Подход: Deterministic Action Pipeline + Reducer + Event Sourcing        ║
-╚═══════════════════════════════════════════════════════════════════════════╝
-*/
+const WORLD_MANIFEST_PATH = "world/manifest.json";
+let WorldDB = null;
+let GlobalState = null;
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 1: СОСТОЯНИЕ (STATE) — Единственный источник правды
-// ═══════════════════════════════════════════════════════════════════════════════
-const InitialState = {
-    // Meta
-    phase: "CREATION_NAME", // CREATION_NAME | CREATION_CLASS | CREATION_CONFIRM | GAME | GAME_OVER
-    turn: 0,
+const StatLabels = { strength: "Сила", agility: "Ловкость", luck: "Удача", wisdom: "Мудрость" };
+const ShortcutMap = { "о": "осмотреться", "ж": "взять", "и": "инвентарь", "с": "статус", "к": "карта", "п": "помощь", "г": "говорить", "з": "изучить", "ю": "обокрасть", "а": "атаковать" };
+const SystemCommands = new Map([["инвентарь", "inventory"], ["i", "inventory"], ["статус", "status"], ["статы", "status"], ["карта", "map"], ["помощь", "help"], ["help", "help"], ["validate_world", "validate_world"], ["валидировать", "validate_world"]]);
 
-    // Player
-    player: {
-        name: null,
-        class: null,
-        hp: 0,
-        maxHp: 0,
-        luck: 0,
-        strength: 0,
-        agility: 0,
-        wisdom: 0,
-        inventory: [],
-        location: "glass_purgatory"
+function cloneState(state) { return JSON.parse(JSON.stringify(state)); }
+function normalize(text) { return String(text || "").trim().toLowerCase().replace(/ё/g, "е"); }
+function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[char])); }
+function signed(value) { return value >= 0 ? `+${value}` : String(value); }
+function pick(list) { return Array.isArray(list) && list.length ? list[Math.floor(Math.random() * list.length)] : ""; }
+function randomId(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`; }
+
+const WorldLoader = {
+    async fetchJson(path) {
+        const response = await fetch(path, { cache: "no-store" });
+        if (!response.ok) throw new Error(`${path}: ${response.status}`);
+        return response.json();
     },
-
-    // Temp creation state
-    creation: {
-        tempName: null,
-        tempClass: null
+    async load() {
+        const manifest = await this.fetchJson(WORLD_MANIFEST_PATH);
+        const db = { title: "VERMIS", subtitle: "", version: "", startLocation: null, settings: { turnMinutes: 10, startingTimeMinutes: 490, transitSecondsDefault: 5 }, fates: {}, locations: {}, entities: {}, actionPacks: {}, verbsByWord: {}, verbsById: {}, rules: [], fallbacks: [], sourceFiles: [] };
+        for (const path of manifest.configs || []) this.mergeConfig(db, await this.fetchJson(path), path);
+        for (const path of manifest.locations || []) this.mergeLocation(db, await this.fetchJson(path), path);
+        for (const path of manifest.entities || []) this.mergeEntities(db, await this.fetchJson(path), path);
+        for (const path of manifest.actions || []) this.mergeActions(db, await this.fetchJson(path), path);
+        this.buildIndexes(db);
+        return db;
     },
-
-    // World state
-    world: {
-        discoveredLocations: ["glass_purgatory"],
-        killedEnemies: [],
-        eventLog: []
+    mergeConfig(db, data, path) {
+        Object.assign(db, { title: data.title || db.title, subtitle: data.subtitle || db.subtitle, version: data.version || db.version, startLocation: data.startLocation || db.startLocation, settings: { ...db.settings, ...(data.settings || {}) }, fates: { ...db.fates, ...(data.fates || {}) } });
+        if (data.locations) this.mergeLocation(db, data.locations, path);
+        if (data.entities) this.mergeEntities(db, data, path);
+        if (data.actions) this.mergeActions(db, data, path);
+        db.sourceFiles.push(path);
     },
-
-    // UI state
-    ui: {
-        lastOutput: null,
-        pendingScroll: false
-    }
-};
-
-// Глубокое копирование состояния
-function cloneState(state) {
-    return JSON.parse(JSON.stringify(state));
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 2: ДЕЙСТВИЯ (ACTIONS) — Типизированные события
-// ═══════════════════════════════════════════════════════════════════════════════
-const ActionTypes = {
-    // Creation
-    SET_NAME: "SET_NAME",
-    SET_CLASS: "SET_CLASS",
-    CONFIRM_CHARACTER: "CONFIRM_CHARACTER",
-    RESTART_CREATION: "RESTART_CREATION",
-
-    // Game
-    MOVE: "MOVE",
-    LOOK: "LOOK",
-    EXAMINE: "EXAMINE",
-    TAKE: "TAKE",
-    TALK: "TALK",
-    STEAL: "STEAL",
-    ATTACK: "ATTACK",
-    SHOW_INVENTORY: "SHOW_INVENTORY",
-    SHOW_STATUS: "SHOW_STATUS",
-    SHOW_MAP: "SHOW_MAP",
-    SHOW_HELP: "SHOW_HELP",
-
-    // System
-    UNKNOWN_COMMAND: "UNKNOWN_COMMAND",
-    INVALID_INPUT: "INVALID_INPUT"
-};
-
-// Фабрики действий (Action Creators)
-const Actions = {
-    setName: (name) => ({ type: ActionTypes.SET_NAME, payload: { name } }),
-    setClass: (classId) => ({ type: ActionTypes.SET_CLASS, payload: { classId } }),
-    confirmCharacter: () => ({ type: ActionTypes.CONFIRM_CHARACTER }),
-    restartCreation: () => ({ type: ActionTypes.RESTART_CREATION }),
-    move: (target) => ({ type: ActionTypes.MOVE, payload: { target } }),
-    look: (target = null) => ({ type: ActionTypes.LOOK, payload: { target } }),
-    examine: (target) => ({ type: ActionTypes.EXAMINE, payload: { target } }),
-    take: (target) => ({ type: ActionTypes.TAKE, payload: { target } }),
-    talk: (target) => ({ type: ActionTypes.TALK, payload: { target } }),
-    steal: (target) => ({ type: ActionTypes.STEAL, payload: { target } }),
-    attack: (target) => ({ type: ActionTypes.ATTACK, payload: { target } }),
-    showInventory: () => ({ type: ActionTypes.SHOW_INVENTORY }),
-    showStatus: () => ({ type: ActionTypes.SHOW_STATUS }),
-    showMap: () => ({ type: ActionTypes.SHOW_MAP }),
-    showHelp: () => ({ type: ActionTypes.SHOW_HELP }),
-
-    unknownCommand: (input) => ({ type: ActionTypes.UNKNOWN_COMMAND, payload: { input } }),
-    invalidInput: (reason) => ({ type: ActionTypes.INVALID_INPUT, payload: { reason } })
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 3: РЕДУКТОР (REDUCER) — Чистая функция (state, action) → state
-// ═══════════════════════════════════════════════════════════════════════════════
-function reducer(state, action) {
-    const newState = cloneState(state);
-    newState.turn++;
-
-    switch (action.type) {
-        // ═─ CREATION PHASE ─────────────────────────────────────────
-        case ActionTypes.SET_NAME:
-            if (!action.payload.name || action.payload.name.length < 2) {
-                newState.ui.lastOutput = {
-                    type: "error",
-                    text: "Имя должно содержать минимум 2 символа. Как тебя зовут, странник?"
-                };
-                return newState;
-            }
-            // Проверка что это не команда
-            const cmdVerbs = ["осмотреться", "помощь", "инвентарь", "статус", "карта", "идти", "взять", "атаковать"];
-            if (cmdVerbs.includes(action.payload.name.toLowerCase())) {
-                newState.ui.lastOutput = {
-                    type: "warning",
-                    text: `"${action.payload.name}" — это команда, а не имя. Введи своё настоящее имя.`
-                };
-                return newState;
-            }
-            newState.creation.tempName = action.payload.name;
-            newState.phase = "CREATION_CLASS";
-            newState.ui.lastOutput = {
-                type: "class_selection",
-                name: action.payload.name
-            };
-            return newState;
-
-        case ActionTypes.SET_CLASS:
-            const classId = validateClassSelection(action.payload.classId);
-            if (!classId) {
-                newState.ui.lastOutput = {
-                    type: "error",
-                    text: "Неверный выбор. Введи номер (1-4) или название класса."
-                };
-                return newState;
-            }
-            newState.creation.tempClass = classId;
-            newState.phase = "CREATION_CONFIRM";
-            newState.ui.lastOutput = {
-                type: "class_confirm",
-                name: newState.creation.tempName,
-                classId: classId
-            };
-            return newState;
-
-        case ActionTypes.CONFIRM_CHARACTER:
-            const classData = WorldDB.classes[newState.creation.tempClass];
-            newState.player = {
-                name: newState.creation.tempName,
-                class: newState.creation.tempClass,
-                hp: classData.stats.hp,
-                maxHp: classData.stats.maxHp,
-                luck: classData.stats.luck,
-                strength: classData.stats.strength,
-                agility: classData.stats.agility,
-                wisdom: classData.stats.wisdom,
-                inventory: [...classData.startingItems],
-                location: "glass_purgatory"
-            };
-            newState.phase = "GAME";
-            newState.ui.lastOutput = {
-                type: "game_start",
-                name: newState.player.name,
-                className: classData.name,
-                epithet: classData.epithet
-            };
-            return newState;
-
-        case ActionTypes.RESTART_CREATION:
-            newState.creation = { tempName: null, tempClass: null };
-            newState.phase = "CREATION_NAME";
-            newState.ui.lastOutput = { type: "creation_restart" };
-            return newState;
-
-        // ═─ GAME PHASE ─────────────────────────────────────────────
-        case ActionTypes.MOVE:
-            return handleMove(newState, action.payload.target);
-        case ActionTypes.LOOK:
-            return handleLook(newState, action.payload.target);
-        case ActionTypes.EXAMINE:
-            return handleExamine(newState, action.payload.target);
-        case ActionTypes.TAKE:
-            return handleTake(newState, action.payload.target);
-        case ActionTypes.TALK:
-            return handleTalk(newState, action.payload.target);
-        case ActionTypes.STEAL:
-            return handleSteal(newState, action.payload.target);
-        case ActionTypes.ATTACK:
-            return handleAttack(newState, action.payload.target);
-        case ActionTypes.SHOW_INVENTORY:
-            return handleInventory(newState);
-        case ActionTypes.SHOW_STATUS:
-            return handleStatus(newState);
-        case ActionTypes.SHOW_MAP:
-            return handleMap(newState);
-        case ActionTypes.SHOW_HELP:
-            return handleHelp(newState);
-        case ActionTypes.UNKNOWN_COMMAND:
-            newState.ui.lastOutput = {
-                type: "error",
-                text: `Неизвестная команда: "${action.payload.input}". Введи 'помощь' для списка команд.`
-            };
-            return newState;
-        case ActionTypes.INVALID_INPUT:
-            newState.ui.lastOutput = {
-                type: "error",
-                text: action.payload.reason
-            };
-            return newState;
-
-        default:
-            return newState;
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 4: БАЗА ДАННЫХ МИРА
-// ═══════════════════════════════════════════════════════════════════════════════
-const WorldDB = {
-    classes: {
-        wayfarer: {
-            name: "Скиталец",
-            nameEn: "Wayfarer",
-            epithet: "Блуждающий в Тумане",
-            description: "Потерянная душа, забредшая в Чистилище. Ни силы, ни мудрости — лишь воля к выходу.",
-            stats: { hp: 20, maxHp: 20, luck: 3, strength: 3, agility: 4, wisdom: 4 },
-            startingItems: ["Рваный плащ", "Тусклый фонарь"],
-            quote: "Я не помню, как попал сюда. Но я помню, что должен найти выход."
-        },
-        scavenger: {
-            name: "Мусорщик",
-            nameEn: "Scavenger",
-            epithet: "Коллекционер Осколков",
-            description: "Собиратель осколков в коридорах. Торгует находками, грабит трупы.",
-            stats: { hp: 15, maxHp: 15, luck: 7, strength: 2, agility: 6, wisdom: 3 },
-            startingItems: ["Ржавый крюк", "Мешок для осколков"],
-            quote: "Всё имеет цену. Особенно твоя душа."
-        },
-        graver: {
-            name: "Могильщик",
-            nameEn: "Grave Walker",
-            epithet: "Страж Костяного Сада",
-            description: "Хранитель забытых гробниц. Тяжёлый молот, тяжёлая душа.",
-            stats: { hp: 30, maxHp: 30, luck: 1, strength: 8, agility: 2, wisdom: 4 },
-            startingItems: ["Тяжёлый молот", "Фонарь мертвеца"],
-            quote: "Я хороню тех, кого даже смерть не принимает."
-        },
-        seer: {
-            name: "Зеркальный Провидец",
-            nameEn: "Mirror Seer",
-            epithet: "Голос Стеклянных Стен",
-            description: "Тот, кто смотрит в зеркала слишком долго. Видит прошлое в осколках.",
-            stats: { hp: 12, maxHp: 12, luck: 4, strength: 1, agility: 3, wisdom: 9 },
-            startingItems: ["Зеркальный посох", "Осколок истины"],
-            quote: "Зеркала лгут. Но иногда они говорят правду."
-        }
+    mergeLocation(db, data, path) {
+        const list = Array.isArray(data) ? data : data.locations ? data.locations : data.id ? [data] : Object.values(data);
+        list.forEach((loc) => { if (loc?.id) db.locations[loc.id] = loc; });
+        db.sourceFiles.push(path);
     },
-
-    locations: {
-        glass_purgatory: {
-            id: "glass_purgatory",
-            title: "Стеклянное Чистилище",
-            titleEn: "The Glass Purgatory",
-            description: "Бесконечные коридоры между реальностью и иллюзией. Стены покрыты слоями битого зеркального стекла. Туман стелется по полу.",
-            atmosphere: "Звон осколков под ногами. Холодное дыхание тумана.",
-            exits: ["silver_road", "glass_nest"],
-            items: ["осколок_зеркала"],
-            npcs: {
-                "купец": {
-                    name: "Теневой Купец",
-                    type: "merchant",
-                    status: "neutral",
-                    description: "Фигура в рваном плаще. Лицо скрыто под капюшоном.",
-                    dialogue: [
-                        "Осколки — единственная валюта здесь.",
-                        "У меня есть кое-что особенное... но ты пока не можешь позволить себе.",
-                        "Они наблюдают. Зеркала всегда наблюдают."
-                    ]
-                }
-            },
-            dc_modifier: 0
-        },
-        silver_road: {
-            id: "silver_road",
-            title: "Серебряная Дорога",
-            titleEn: "The Silver Road",
-            description: "Древний путь, вымощенный чем-то похожим на кости и серебро. Стены украшены статуэтками с зеркалами вместо лиц.",
-            atmosphere: "Тяжёлый воздух. Скрежет под ногами. Шёпот из ниоткуда.",
-            exits: ["glass_purgatory", "bone_garden"],
-            items: ["серебряная_монета"],
-            npcs: {
-                "страж": {
-                    name: "Страж Дороги",
-                    type: "guard",
-                    status: "aggressive",
-                    description: "Огромная фигура в ржавых латах. Забрало — сплошное зеркало.",
-                    stats: { hp: 30, damage: 8, defense: 5 },
-                    dialogue: ["Стой. Дорога закрыта для таких как ты."]
-                }
-            },
-            dc_modifier: 2
-        },
-        glass_nest: {
-            id: "glass_nest",
-            title: "Стеклянное Гнездо",
-            titleEn: "The Glass Nest",
-            description: "Пещера, где стены покрыты слоями битого стекла и чего-то органического. Зеркальные соты тянутся в темноту.",
-            atmosphere: "Чьё-то дыхание в темноте. Ты не один.",
-            exits: ["glass_purgatory"],
-            items: ["стеклянное_яйцо"],
-            npcs: {},
-            dc_modifier: 3
-        },
-        bone_garden: {
-            id: "bone_garden",
-            title: "Костяной Сад",
-            titleEn: "The Bone Garden",
-            description: "Сад, где вместо цветов — кости. Деревья из позвонков, кусты из рёбер. В центре — фонтан из черепов.",
-            atmosphere: "Сладковатый запах гниения. Кости двигаются?",
-            exits: ["silver_road"],
-            items: ["костяной_цветок"],
-            npcs: {
-                "садовник": {
-                    name: "Садовник",
-                    type: "caretaker",
-                    status: "neutral",
-                    description: "Сгорбленная фигура. Ухаживает за костями.",
-                    dialogue: ["Не трогай мои цветы... Они растут из воспоминаний."]
-                }
-            },
-            dc_modifier: 4
-        }
+    mergeEntities(db, data, path) {
+        const list = Array.isArray(data) ? data : data.entities ? data.entities : data.id ? [data] : Object.values(data);
+        list.forEach((entity) => { if (entity?.id) db.entities[entity.id] = entity; });
+        db.sourceFiles.push(path);
     },
-
-    items: {
-        осколок_зеркала: { name: "Осколок Зеркала", description: "Кусок зеркала. В отражении ты видишь кого-то другого." },
-        серебряная_монета: { name: "Серебряная Монета", description: "Монета с изображением закрытого глаза." },
-        стеклянное_яйцо: { name: "Стеклянное Яйцо", description: "Яйцо из стекла. Внутри что-то движется." },
-        костяной_цветок: { name: "Костяной Цветок", description: "Цветок из кости. Красивый и ужасный." }
+    mergeActions(db, data, path) {
+        const packs = Array.isArray(data) ? data : data.actions ? data.actions : [data];
+        packs.forEach((pack) => {
+            if (!pack?.id) return;
+            db.actionPacks[pack.id] = pack;
+            db.rules.push(...(pack.rules || []).map((rule) => ({ ...rule, packId: pack.id })));
+            db.fallbacks.push(...(pack.fallbacks || []).map((fallback) => ({ ...fallback, packId: pack.id })));
+        });
+        db.sourceFiles.push(path);
+    },
+    buildIndexes(db) {
+        Object.values(db.actionPacks).forEach((pack) => (pack.verbs || []).forEach((verb) => {
+            const known = db.verbsById[verb.id] || { ...verb, words: [], tags: [] };
+            known.words = [...new Set([...(known.words || []), ...(verb.words || [])])];
+            known.tags = [...new Set([...(known.tags || []), ...(verb.tags || [])])];
+            known.defaultTarget = known.defaultTarget || verb.defaultTarget;
+            db.verbsById[verb.id] = known;
+            known.words.forEach((word) => db.verbsByWord[normalize(word)] = known);
+        }));
     }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 5: ОБРАБОТЧИКИ ДЕЙСТВИЙ (Action Handlers)
-// ═══════════════════════════════════════════════════════════════════════════════
-function validateClassSelection(input) {
-    const classKeys = Object.keys(WorldDB.classes);
-    const lower = input.toLowerCase();
-
-    // По номеру
-    const num = parseInt(input);
-    if (num >= 1 && num <= classKeys.length) return classKeys[num - 1];
-
-    // По названию
-    return classKeys.find(k =>
-        k.includes(lower) ||
-        WorldDB.classes[k].name.toLowerCase().includes(lower) ||
-        WorldDB.classes[k].nameEn.toLowerCase().includes(lower)
-    );
+function createInitialState(db) {
+    const entities = {};
+    Object.entries(db.entities).forEach(([id, entity]) => entities[id] = { hp: entity.hp ?? null, maxHp: entity.maxHp ?? entity.hp ?? null, isDead: false, location: null });
+    Object.values(db.locations).forEach((loc) => (loc.entities || []).forEach((id) => { if (entities[id]) entities[id].location = loc.id; }));
+    return { phase: "CREATION_NAME", turn: 0, player: { name: null, fate: null, hp: 0, maxHp: 0, stats: { strength: 0, agility: 0, luck: 0, wisdom: 0 }, inventory: [], location: db.startLocation, statuses: {}, reputation: 0 }, creation: { tempName: null, tempFate: null }, world: { timeMinutes: db.settings.startingTimeMinutes || 490, discoveredLocations: db.startLocation ? [db.startLocation] : [], entities, relations: {}, facts: {}, eventLog: [], validation: [] }, ui: { lastOutput: null } };
 }
 
-function rollD20() {
-    return Math.floor(Math.random() * 20) + 1;
+function getEntityState(state, id) { return state.world.entities[id] || {}; }
+function getCurrentLocation(state) { return WorldDB.locations[state.player.location]; }
+function getVisibleEntityIds(state, locId = state.player.location) { return Object.entries(state.world.entities).filter(([, e]) => e.location === locId).map(([id]) => id).filter((id) => WorldDB.entities[id]); }
+function getVisibleEntities(state, locId = state.player.location) { return getVisibleEntityIds(state, locId).map((id) => ({ id, ...WorldDB.entities[id], state: getEntityState(state, id) })); }
+function entityMatches(entity, query) { const q = normalize(query); return q && [entity.id, entity.name, ...(entity.aliases || [])].map(normalize).some((name) => name === q || name.includes(q) || q.includes(name)); }
+function getRelation(state, entityId) { const entity = WorldDB.entities[entityId]; return (entity?.attitudeByFate?.[state.player.fate] || 0) + (state.world.relations[entityId] || 0) + Math.floor(state.player.reputation / 4); }
+function isNight(state) { const h = Math.floor((state.world.timeMinutes % 1440) / 60); return h >= 20 || h < 5; }
+function formatTime(state) { const minutes = state.world.timeMinutes % 1440; const day = Math.floor(state.world.timeMinutes / 1440) + 1; return `День ${day}, ${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`; }
+function timePhrase(state) { const h = Math.floor((state.world.timeMinutes % 1440) / 60); if (h >= 5 && h < 8) return "В лучах рассвета песок кажется пеплом, который ещё не успели развеять."; if (h >= 8 && h < 16) return "Солнце давит сверху без милости; любой металл становится маленькой печью."; if (h >= 16 && h < 20) return "В закатном солнце Агерут выглядит древнее и злее, чем днём."; return "Солнце скрылось; ночь приближается к каждому переулку как долг, который нельзя отменить."; }
+
+function expandShortcuts(input) { const tokens = input.trim().split(/\s+/); const first = normalize(tokens[0]); if (ShortcutMap[first]) tokens[0] = ShortcutMap[first]; return tokens.join(" "); }
+function validateFateSelection(input) {
+    const lower = normalize(input);
+    const keys = Object.keys(WorldDB.fates);
+    const number = Number.parseInt(lower, 10);
+    if (number >= 1 && number <= keys.length) return keys[number - 1];
+    return keys.find((key) => { const fate = WorldDB.fates[key]; return normalize(key).includes(lower) || normalize(fate.name).includes(lower) || normalize(fate.nameEn).includes(lower); });
 }
 
-function formatDiceResult(d20, modifier, total, dc, type) {
-    const colors = {
-        critical_success: "#ffd700",
-        success: "#2d5a27",
-        failure: "#8b4500",
-        critical_failure: "#8b2500"
-    };
-    const labels = {
-        critical_success: "КРИТИЧЕСКИЙ УСПЕХ",
-        success: "УСПЕХ",
-        failure: "ПРОВАЛ",
-        critical_failure: "КРИТИЧЕСКИЙ ПРОВАЛ"
-    };
-    return `<span style="color:${colors[type]}">[${labels[type]}] d20:${d20} + ${modifier} = ${total} (DC ${dc})</span>`;
-}
-
-function handleMove(state, target) {
-    const loc = WorldDB.locations[state.player.location];
-
-    if (!target) {
-        const exits = loc.exits.map(e => {
-            const l = WorldDB.locations[e];
-            const discovered = state.world.discoveredLocations.includes(e);
-            const title = discovered ? l.title : "???";
-            return `<span class="clickable" data-cmd="идти ${e}">${title}</span>`;
-        }).join(", ");
-        state.ui.lastOutput = { type: "info_html", html: `Доступные пути: ${exits}` };
-        return state;
-    }
-
-    const targetLoc = loc.exits.find(e => e.toLowerCase().includes(target.toLowerCase()));
-    if (!targetLoc) {
-        state.ui.lastOutput = { type: "error", text: `Путь "${target}" закрыт. Туман скрывает этот маршрут.` };
-        return state;
-    }
-
-    const newLoc = WorldDB.locations[targetLoc];
-    state.player.location = targetLoc;
-
-    if (!state.world.discoveredLocations.includes(targetLoc)) {
-        state.world.discoveredLocations.push(targetLoc);
-    }
-
-    state.ui.lastOutput = {
-        type: "location",
-        title: newLoc.title,
-        titleEn: newLoc.titleEn,
-        description: newLoc.description,
-        atmosphere: newLoc.atmosphere,
-        exits: newLoc.exits,
-        npcs: newLoc.npcs,
-        items: newLoc.items
-    };
-
-    return state;
-}
-
-function handleLook(state, target) {
-    if (target) {
-        state.ui.lastOutput = { type: "hint", text: `Используй 'изучить ${target}' для детального осмотра.` };
-        return state;
-    }
-    const loc = WorldDB.locations[state.player.location];
-    state.ui.lastOutput = {
-        type: "location",
-        title: loc.title,
-        titleEn: loc.titleEn,
-        description: loc.description,
-        atmosphere: loc.atmosphere,
-        exits: loc.exits,
-        npcs: loc.npcs,
-        items: loc.items
-    };
-    return state;
-}
-
-function handleExamine(state, target) {
-    if (!target) {
-        state.ui.lastOutput = { type: "hint", text: "Что изучить?" };
-        return state;
-    }
-    const loc = WorldDB.locations[state.player.location];
-
-    // Поиск среди NPC
-    if (loc.npcs) {
-        for (const [key, npc] of Object.entries(loc.npcs)) {
-            if (key.includes(target.toLowerCase()) || npc.name.toLowerCase().includes(target.toLowerCase())) {
-                state.ui.lastOutput = { type: "examine_npc", npc: npc };
-                return state;
-            }
-        }
-    }
-
-    // Поиск среди предметов
-    if (loc.items) {
-        for (const itemKey of loc.items) {
-            if (itemKey.includes(target.toLowerCase())) {
-                state.ui.lastOutput = { type: "examine_item", item: WorldDB.items[itemKey] };
-                return state;
-            }
-        }
-    }
-
-    state.ui.lastOutput = { type: "error", text: `Не вижу "${target}" здесь.` };
-    return state;
-}
-
-function handleTake(state, target) {
-    if (!target) {
-        state.ui.lastOutput = { type: "hint", text: "Что взять?" };
-        return state;
-    }
-    const loc = WorldDB.locations[state.player.location];
-    if (!loc.items || loc.items.length === 0) {
-        state.ui.lastOutput = { type: "info", text: "Здесь нечего брать." };
-        return state;
-    }
-
-    const itemIndex = loc.items.findIndex(i => i.includes(target.toLowerCase()));
-    if (itemIndex === -1) {
-        state.ui.lastOutput = { type: "error", text: `Не нахожу "${target}".` };
-        return state;
-    }
-
-    const itemKey = loc.items[itemIndex];
-    const item = WorldDB.items[itemKey];
-
-    loc.items.splice(itemIndex, 1);
-    state.player.inventory.push(item ? item.name : itemKey);
-
-    state.ui.lastOutput = { type: "success", text: `Взял: ${item ? item.name : itemKey}` };
-    return state;
-}
-
-function handleTalk(state, target) {
-    if (!target) {
-        state.ui.lastOutput = { type: "hint", text: "С кем говорить?" };
-        return state;
-    }
-    const loc = WorldDB.locations[state.player.location];
-    if (!loc.npcs) {
-        state.ui.lastOutput = { type: "info", text: "Не с кем говорить." };
-        return state;
-    }
-
-    for (const [key, npc] of Object.entries(loc.npcs)) {
-        if (key.includes(target.toLowerCase()) || npc.name.toLowerCase().includes(target.toLowerCase())) {
-            if (!npc.dialogue) {
-                state.ui.lastOutput = { type: "info", text: `${npc.name} молчит.` };
-            } else {
-                const phrase = npc.dialogue[Math.floor(Math.random() * npc.dialogue.length)];
-                state.ui.lastOutput = { type: "dialogue", npc: npc.name, text: phrase };
-            }
-            return state;
-        }
-    }
-
-    state.ui.lastOutput = { type: "error", text: `"${target}" не найден.` };
-    return state;
-}
-
-function handleSteal(state, target) {
-    if (!target) {
-        state.ui.lastOutput = { type: "hint", text: "Кого обокрасть?" };
-        return state;
-    }
-    const loc = WorldDB.locations[state.player.location];
-    if (!loc.npcs) {
-        state.ui.lastOutput = { type: "info", text: "Некого обокрасть." };
-        return state;
-    }
-
-    for (const [key, npc] of Object.entries(loc.npcs)) {
-        if (key.includes(target.toLowerCase()) || npc.name.toLowerCase().includes(target.toLowerCase())) {
-            const dc = 12 + (loc.dc_modifier || 0);
-            const d20 = rollD20();
-            const total = d20 + state.player.luck;
-
-            let result;
-            if (d20 === 20) result = "critical_success";
-            else if (d20 === 1) result = "critical_failure";
-            else if (total >= dc) result = "success";
-            else result = "failure";
-
-            const diceText = formatDiceResult(d20, state.player.luck, total, dc, result);
-            let responseText = diceText + "<br>";
-
-            switch (result) {
-                case "critical_success":
-                    state.player.inventory.push("Серебряный осколок", "Странный ключ");
-                    responseText += "Чистая работа! Два предмета твои.";
-                    break;
-                case "success":
-                    state.player.inventory.push("Серебряный осколок");
-                    responseText += "Успех! Взял Серебряный осколок.";
-                    break;
-                case "failure":
-                    responseText += `${npc.name} замечает тебя. Пора уходить.`;
-                    break;
-                case "critical_failure":
-                    state.player.hp -= 5;
-                    responseText += `КОШМАР! ${npc.name} хватает тебя! -5 HP.`;
-                    break;
-            }
-
-            state.ui.lastOutput = { type: "dice_result", text: responseText };
-            return state;
-        }
-    }
-
-    state.ui.lastOutput = { type: "error", text: `"${target}" не найден.` };
-    return state;
-}
-
-function handleAttack(state, target) {
-    if (!target) {
-        state.ui.lastOutput = { type: "hint", text: "Кого атаковать?" };
-        return state;
-    }
-    const loc = WorldDB.locations[state.player.location];
-    if (!loc.npcs) {
-        state.ui.lastOutput = { type: "info", text: "Нечего атаковать." };
-        return state;
-    }
-
-    for (const [key, npc] of Object.entries(loc.npcs)) {
-        if (key.includes(target.toLowerCase()) || npc.name.toLowerCase().includes(target.toLowerCase())) {
-            const dc = 10 + (loc.dc_modifier || 0);
-            const d20 = rollD20();
-            const total = d20 + state.player.strength;
-
-            let result;
-            if (d20 === 20) result = "critical_success";
-            else if (d20 === 1) result = "critical_failure";
-            else if (total >= dc) result = "success";
-            else result = "failure";
-
-            const diceText = formatDiceResult(d20, state.player.strength, total, dc, result);
-            let responseText = diceText + "<br>";
-
-            switch (result) {
-                case "critical_success":
-                    responseText += `ДЕВИТИРУЮЩИЙ УДАР! ${state.player.strength * 2 + 6} урона!`;
-                    break;
-                case "success":
-                    responseText += `Удар! ${state.player.strength + 4} урона.`;
-                    break;
-                case "failure":
-                    responseText += `${npc.name} уклоняется.`;
-                    break;
-                case "critical_failure":
-                    state.player.hp -= 3;
-                    responseText += `Ты оступаешься! -3 HP.`;
-                    break;
-            }
-
-            state.ui.lastOutput = { type: "dice_result", text: responseText };
-            return state;
-        }
-    }
-
-    state.ui.lastOutput = { type: "error", text: `"${target}" не найден.` };
-    return state;
-}
-
-function handleInventory(state) {
-    if (state.player.inventory.length === 0) {
-        state.ui.lastOutput = { type: "info", text: "Инвентарь пуст." };
-    } else {
-        state.ui.lastOutput = { type: "inventory", items: state.player.inventory };
-    }
-    return state;
-}
-
-function handleStatus(state) {
-    const classData = WorldDB.classes[state.player.class];
-    state.ui.lastOutput = {
-        type: "status",
-        name: state.player.name,
-        className: classData.name,
-        epithet: classData.epithet,
-        hp: state.player.hp,
-        maxHp: state.player.maxHp,
-        luck: state.player.luck,
-        strength: state.player.strength,
-        agility: state.player.agility,
-        wisdom: state.player.wisdom
-    };
-    return state;
-}
-
-function handleMap(state) {
-    state.ui.lastOutput = {
-        type: "map",
-        locations: WorldDB.locations,
-        discovered: state.world.discoveredLocations,
-        current: state.player.location
-    };
-    return state;
-}
-
-function handleHelp(state) {
-    state.ui.lastOutput = { type: "help" };
-    return state;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 6: ПАРСЕР ВВОДА
-// ═══════════════════════════════════════════════════════════════════════════════
-const VerbMap = {
-    // Полные команды
-    "идти": "move", "иду": "move", "пройти": "move",
-    "осмотреться": "look", "осмотреть": "look", "смотреть": "look",
-    "изучить": "examine", "рассмотреть": "examine",
-    "взять": "take", "поднять": "take",
-    "говорить": "talk", "поговорить": "talk",
-    "обокрасть": "steal", "украсть": "steal",
-    "атаковать": "attack", "ударить": "attack",
-    "инвентарь": "inventory", "и": "inventory",
-    "статус": "status", "статы": "status",
-    "карта": "map",
-    "помощь": "help", "help": "help"
-};
-
-// Сокращения команд
-const ShortcutMap = {
-    "о": "осмотреться",
-    "ж": "взять",
-    "и": "инвентарь",
-    "с": "статус",
-    "к": "карта",
-    "п": "помощь",
-    "г": "говорить",
-    "з": "изучить",
-    "ю": "обокрасть",
-    "а": "атаковать"
-};
-
-function expandShortcuts(input) {
-    const tokens = input.trim().split(/\s+/);
-    if (tokens.length > 0 && ShortcutMap[tokens[0]]) {
-        tokens[0] = ShortcutMap[tokens[0]];
-        return tokens.join(" ");
-    }
-    return input;
-}
-
-function parseInput(input, phase) {
+function parseInput(input, state) {
     const trimmed = input.trim();
     if (!trimmed) return null;
-    
-    // Расширить сокращения
     const expanded = expandShortcuts(trimmed);
-    const lower = expanded.toLowerCase();
+    const lower = normalize(expanded);
+    if (state.phase === "CREATION_NAME") return { type: "SET_NAME", payload: { name: trimmed } };
+    if (state.phase === "CREATION_FATE") return { type: "SET_FATE", payload: { input: trimmed } };
+    if (state.phase === "CREATION_CONFIRM") {
+        if (["да", "yes", "y"].includes(lower)) return { type: "CONFIRM_CHARACTER" };
+        if (["нет", "no", "n"].includes(lower)) return { type: "RESTART_CREATION" };
+        return { type: "INVALID", payload: { text: "Напиши 'да' или 'нет'." } };
+    }
     const tokens = lower.split(/\s+/);
-    const verb = tokens[0];
-    const target = tokens.slice(1).join(" ");
+    const verbWord = tokens[0];
+    const targetText = tokens.slice(1).join(" ");
+    const system = SystemCommands.get(verbWord);
+    if (system) return { type: "SYSTEM", payload: { command: system } };
+    const verb = WorldDB.verbsByWord[verbWord];
+    if (!verb) return { type: "UNKNOWN", payload: { input: verbWord } };
+    return { type: "PARSED", payload: { verb, verbWord, targetText, raw: trimmed } };
+}
 
-    // В фазе создания персонажа — только ввод текста
-    if (phase === "CREATION_NAME") {
-        return Actions.setName(trimmed);
-    }
-
-    if (phase === "CREATION_CLASS") {
-        return Actions.setClass(trimmed);
-    }
-
-    if (phase === "CREATION_CONFIRM") {
-        if (lower === "да" || lower === "yes" || lower === "y") {
-            return Actions.confirmCharacter();
+function resolveTarget(state, parsed) {
+    const loc = getCurrentLocation(state);
+    const targetText = parsed.targetText;
+    if (!targetText) return { kind: "none", id: null, name: null, tags: [] };
+    if (parsed.verb.defaultTarget === "location_exit" || parsed.verb.id === "move") {
+        const exit = (loc.exits || []).find((candidate) => {
+            const targetLoc = WorldDB.locations[candidate.target];
+            const values = [candidate.target, candidate.label, candidate.direction, targetLoc?.title, targetLoc?.titleEn].map(normalize);
+            const q = normalize(targetText);
+            return values.some((value) => value && (value.includes(q) || q.includes(value)));
+        });
+        if (exit) {
+            const targetLoc = WorldDB.locations[exit.target];
+            return { kind: "location_exit", id: exit.target, name: exit.label || targetLoc?.title || exit.target, tags: targetLoc?.tags || [], exit };
         }
-        if (lower === "нет" || lower === "no" || lower === "n") {
-            return Actions.restartCreation();
-        }
-        return Actions.invalidInput("Напиши 'да' или 'нет'.");
     }
+    const entity = getVisibleEntities(state).find((candidate) => entityMatches(candidate, targetText));
+    if (entity) return { kind: entity.kind, id: entity.id, name: entity.name, tags: entity.tags || [], entity };
+    return { kind: "missing", id: null, name: targetText, tags: [] };
+}
 
-    // В фазе игры — парсинг команд
-    const actionType = VerbMap[verb];
+function targetKindMatches(ruleKind, target) {
+    if (ruleKind === "any") return target.kind !== "missing";
+    if (ruleKind === "none") return target.kind === "none";
+    if (ruleKind === "any_creature") return ["npc", "monster"].includes(target.kind);
+    return ruleKind === target.kind;
+}
+function findRule(parsed, target) {
+    return WorldDB.rules.find((rule) => rule.verb === parsed.verb.id && targetKindMatches(rule.targetKind, target) && (!rule.requiredTags || rule.requiredTags.some((tag) => target.tags.includes(tag))));
+}
+function findFallback(parsed, target) {
+    return WorldDB.fallbacks.find((fallback) => (fallback.verbTags || []).some((tag) => parsed.verb.tags.includes(tag)) && (fallback.targetTags || []).some((tag) => target.tags.includes(tag)));
+}
 
-    switch (actionType) {
-        case "move": return Actions.move(target);
-        case "look": return Actions.look(target);
-        case "examine": return Actions.examine(target);
-        case "take": return Actions.take(target);
-        case "talk": return Actions.talk(target);
-        case "steal": return Actions.steal(target);
-        case "attack": return Actions.attack(target);
-        case "inventory": return Actions.showInventory();
-        case "status": return Actions.showStatus();
-        case "map": return Actions.showMap();
-        case "help": return Actions.showHelp();
-        default: return Actions.unknownCommand(verb);
+function validatePipeline(state, parsed, target, rule) {
+    const physicalTags = ["physical_movement", "physical_manipulation", "physical_attack"];
+    if (state.player.statuses.in_transit && parsed.verb.tags.some((tag) => physicalTags.includes(tag))) {
+        const transit = state.player.statuses.in_transit;
+        return { ok: false, output: { type: "warning", text: `Ты уже в пути к ${transit.label}. Пока действует статус [in_transit], физические действия заблокированы.` } };
+    }
+    if (target.kind === "missing") return { ok: false, output: { type: "error", text: `Здесь не видно цели: "${target.name}".` } };
+    if (target.id && getEntityState(state, target.id).isDead && parsed.verb.id === "attack") return { ok: false, output: { type: "warning", text: `Перед вами лишь безжизненная куча гнили. ${target.name} уже не отвечает на удары.` } };
+    if (parsed.verb.id === "move" && target.kind === "location_exit") {
+        const nextLoc = WorldDB.locations[target.id];
+        if (nextLoc?.tags?.includes("tavern") && state.player.reputation <= -3) return { ok: false, output: { type: "warning", text: "Плохая репутация идёт впереди тебя. У входа в таверну уже подняли засов; безопаснее искать костяные лагеря." } };
+    }
+    return { ok: true };
+}
+
+function shouldRoll(rule, target, state) {
+    if (!rule?.stat) return false;
+    if (rule.dice === "always") return true;
+    if (rule.dice === "hazard") return Boolean(target.exit?.hazard || target.exit?.difficulty);
+    if (rule.dice === "dangerous_location") return (getCurrentLocation(state).tags || []).some((tag) => ["danger", "darkness", "water", "ruins"].includes(tag)) || isNight(state);
+    return false;
+}
+function rollDice(rule, target, state) {
+    if (!shouldRoll(rule, target, state)) return null;
+    const d20 = Math.floor(Math.random() * 20) + 1;
+    const modifier = state.player.stats[rule.stat] || 0;
+    const base = target.exit?.difficulty || rule.difficulty || 10;
+    const dc = base + (target.exit?.difficulty ? 0 : (getCurrentLocation(state).difficultyModifier || 0));
+    const total = d20 + modifier;
+    let grade = d20 === 20 ? "critical_success" : d20 === 1 ? "critical_failure" : total >= dc ? "success" : "failure";
+    const label = { critical_success: "КРИТИЧЕСКИЙ УСПЕХ", success: "УСПЕХ", failure: "ПРОВАЛ", critical_failure: "КРИТИЧЕСКИЙ ПРОВАЛ" }[grade];
+    const formula = `[ d20: ${d20} ] + [ ${StatLabels[rule.stat] || rule.stat}: ${signed(modifier)} ] = ${total} vs Сложность: ${dc}. ${label}!`;
+    console.log(`[dice] ${formula}`);
+    return { d20, modifier, total, dc, grade, label, stat: rule.stat, formula };
+}
+
+function reducer(state, action) {
+    const next = cloneState(state);
+    next.ui.lastOutput = null;
+    switch (action.type) {
+        case "SET_NAME":
+            if (!action.payload.name || action.payload.name.length < 2) { next.ui.lastOutput = { type: "error", text: "Имя должно содержать минимум 2 символа. Как тебя зовут, странник?" }; return next; }
+            if (WorldDB.verbsByWord[normalize(action.payload.name)] || SystemCommands.has(normalize(action.payload.name))) { next.ui.lastOutput = { type: "warning", text: `"${action.payload.name}" звучит как команда, а не имя.` }; return next; }
+            next.creation.tempName = action.payload.name; next.phase = "CREATION_FATE"; next.ui.lastOutput = { type: "fate_selection", name: action.payload.name }; return next;
+        case "SET_FATE": {
+            const fateId = validateFateSelection(action.payload.input);
+            if (!fateId) { next.ui.lastOutput = { type: "error", text: "Неверный выбор. Введи номер или название судьбы." }; return next; }
+            next.creation.tempFate = fateId; next.phase = "CREATION_CONFIRM"; next.ui.lastOutput = { type: "fate_confirm", name: next.creation.tempName, fateId }; return next;
+        }
+        case "CONFIRM_CHARACTER": {
+            const fate = WorldDB.fates[next.creation.tempFate];
+            next.player.name = next.creation.tempName; next.player.fate = next.creation.tempFate; next.player.hp = fate.stats.hp; next.player.maxHp = fate.stats.maxHp;
+            next.player.stats = { strength: fate.stats.strength, agility: fate.stats.agility, luck: fate.stats.luck, wisdom: fate.stats.wisdom };
+            next.player.inventory = [...(fate.startingItems || [])]; next.player.reputation = fate.reputation || 0; next.player.location = WorldDB.startLocation; next.phase = "GAME"; next.world.discoveredLocations = [WorldDB.startLocation];
+            next.player.inventory.forEach((id) => { if (next.world.entities[id]) next.world.entities[id].location = "inventory"; });
+            next.ui.lastOutput = { type: "game_start" }; return next;
+        }
+        case "RESTART_CREATION": next.creation = { tempName: null, tempFate: null }; next.phase = "CREATION_NAME"; next.ui.lastOutput = { type: "creation_restart" }; return next;
+        case "INVALID":
+        case "UNKNOWN":
+            next.ui.lastOutput = { type: "error", text: action.payload.text || `Неизвестная команда: "${action.payload.input}". Введи 'помощь'.` };
+            return next;
+        case "PIPELINE_REJECTED":
+            next.ui.lastOutput = action.payload.output;
+            return tick(next, 0);
+        case "SYSTEM": return reduceSystem(next, action.payload.command);
+        case "WORLD_ACTION": return reduceWorldAction(next, action.payload);
+        case "FALLBACK_ACTION":
+            next.ui.lastOutput = { type: "info", text: action.payload.text };
+            return tick(next, WorldDB.settings.turnMinutes);
+        case "COMPLETE_TRANSIT": return reduceCompleteTransit(next, action.payload);
+        default: return next;
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 7: РЕНДЕРЕР (VIEW) — Отображение состояния
-// ═══════════════════════════════════════════════════════════════════════════════
+function tick(state, minutes = WorldDB.settings.turnMinutes) {
+    if (state.phase === "GAME") {
+        state.turn += 1;
+        state.world.timeMinutes += minutes;
+    }
+    return state;
+}
+
+function reduceSystem(state, command) {
+    if (command === "inventory") state.ui.lastOutput = { type: "inventory" };
+    if (command === "status") state.ui.lastOutput = { type: "status" };
+    if (command === "map") state.ui.lastOutput = { type: "map" };
+    if (command === "help") state.ui.lastOutput = { type: "help" };
+    if (command === "validate_world") {
+        const report = WorldValidator.validate(WorldDB);
+        state.world.validation = report;
+        state.ui.lastOutput = { type: "validation", report };
+        report.forEach((line) => console[line.level === "error" ? "error" : "warn"](`[validate_world] ${line.message}`));
+    }
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+
+function reduceWorldAction(state, payload) {
+    const { parsed, target, rule, dice } = payload;
+    const verbId = parsed.verb.id;
+    if (verbId === "look") return reduceLook(state);
+    if (verbId === "examine") return reduceExamine(state, target);
+    if (verbId === "move") return reduceMove(state, target, rule, dice, payload.transitId);
+    if (verbId === "take") return reduceTake(state, target, rule, dice);
+    if (verbId === "talk") return reduceTalk(state, target);
+    if (["flatter", "deceive", "threaten"].includes(verbId)) return reduceSocialRoll(state, target, rule, dice, verbId);
+    if (verbId === "steal") return reduceSteal(state, target, rule, dice);
+    if (verbId === "gamble") return reduceGamble(state, target, rule, dice);
+    if (verbId === "attack") return reduceAttack(state, target, rule, dice);
+    if (verbId === "open") return reduceOpen(state, target, rule, dice);
+    state.ui.lastOutput = { type: "info", text: "Действие пока не имеет обработчика." };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+
+function reduceLook(state) {
+    state.ui.lastOutput = { type: "location", locationId: state.player.location };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceExamine(state, target) {
+    if (target.kind === "none") state.ui.lastOutput = { type: "hint", text: "Что изучить?" };
+    else if (target.entity) state.ui.lastOutput = { type: "examine_entity", entityId: target.id };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceMove(state, target, rule, dice, transitId) {
+    const loc = getCurrentLocation(state);
+    if (target.kind === "none") { state.ui.lastOutput = { type: "exits", exits: loc.exits || [] }; return tick(state, 0); }
+    if (dice && dice.grade === "critical_failure") { state.player.hp = Math.max(0, state.player.hp - 5); state.ui.lastOutput = { type: "dice_result", dice, text: `${rule.criticalFailureText || rule.failureText} Ты теряешь 5 HP и отступаешь.` }; return tick(state, WorldDB.settings.turnMinutes); }
+    if (dice && dice.grade === "failure") { state.player.hp = Math.max(0, state.player.hp - 2); state.ui.lastOutput = { type: "dice_result", dice, text: `${rule.failureText || "Путь сопротивляется."} Ты теряешь 2 HP и остаёшься на месте.` }; return tick(state, WorldDB.settings.turnMinutes); }
+    const durationSeconds = target.exit.durationSeconds || WorldDB.settings.transitSecondsDefault || 5;
+    state.player.statuses.in_transit = { id: transitId, from: state.player.location, to: target.id, label: target.name, durationSeconds, timeCostMinutes: rule.timeCostMinutes || 20 };
+    state.ui.lastOutput = { type: "transit_started", targetId: target.id, label: target.name, durationSeconds, dice, text: rule.successText };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceTake(state, target, rule, dice) {
+    if (target.kind === "none") { state.ui.lastOutput = { type: "hint", text: "Что взять?" }; return tick(state, 0); }
+    if (target.kind !== "item") { state.ui.lastOutput = { type: "warning", text: `${target.name} не выглядит предметом, который можно просто забрать.` }; return tick(state, WorldDB.settings.turnMinutes); }
+    if (dice && ["failure", "critical_failure"].includes(dice.grade)) { const damage = dice.grade === "critical_failure" ? 4 : 1; state.player.hp = Math.max(0, state.player.hp - damage); state.ui.lastOutput = { type: "dice_result", dice, text: `${rule.failureText} Ты теряешь ${damage} HP.` }; return tick(state, WorldDB.settings.turnMinutes); }
+    state.player.inventory.push(target.id); state.world.entities[target.id].location = "inventory"; state.ui.lastOutput = { type: "success", text: `${rule?.successText || "Взято"}: ${target.name}.` };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceTalk(state, target) {
+    if (!target.id) { state.ui.lastOutput = { type: "hint", text: "С кем говорить?" }; return tick(state, 0); }
+    const entity = WorldDB.entities[target.id];
+    const relation = getRelation(state, target.id);
+    const stage = relation <= -2 ? "hostile" : relation >= 2 ? "warm" : "closed";
+    const line = pick(entity.dialogue?.[stage]) || pick(entity.dialogue?.closed) || `${entity.name} молчит.`;
+    state.world.relations[target.id] = (state.world.relations[target.id] || 0) + 1;
+    state.ui.lastOutput = { type: "dialogue", entityId: target.id, stage, text: line };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceSocialRoll(state, target, rule, dice, verbId) {
+    const success = dice && ["success", "critical_success"].includes(dice.grade);
+    const delta = success ? (dice.grade === "critical_success" ? 2 : 1) : -1;
+    state.world.relations[target.id] = getRelation(state, target.id) + delta;
+    if (verbId === "threaten") state.player.reputation -= success ? 1 : 2;
+    state.ui.lastOutput = { type: "dice_result", dice, text: success ? rule.successText : rule.failureText };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceSteal(state, target, rule, dice) {
+    const entity = WorldDB.entities[target.id];
+    const success = dice && ["success", "critical_success"].includes(dice.grade);
+    state.player.reputation -= success ? 1 : 3;
+    state.world.relations[target.id] = getRelation(state, target.id) + (success ? -1 : -3);
+    if (success) {
+        const loot = (entity.loot || []).slice(0, dice.grade === "critical_success" ? 2 : 1).filter((id) => WorldDB.entities[id]);
+        loot.forEach((id) => { state.player.inventory.push(id); if (state.world.entities[id]) state.world.entities[id].location = "inventory"; });
+        state.ui.lastOutput = { type: "dice_result", dice, text: `${rule.successText} Добыча: ${loot.map((id) => WorldDB.entities[id].name).join(", ") || "ничего, кроме дурного знака"}.` };
+    } else {
+        const damage = target.tags.includes("guard") ? 4 : 2;
+        state.player.hp = Math.max(0, state.player.hp - damage);
+        state.ui.lastOutput = { type: "dice_result", dice, text: `${rule.failureText} Тебя замечают. Репутация падает, -${damage} HP.` };
+    }
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceGamble(state, target, rule, dice) {
+    const success = dice && ["success", "critical_success"].includes(dice.grade);
+    if (success && WorldDB.entities.bone_dice && !state.player.inventory.includes("bone_dice")) state.player.inventory.push("bone_dice");
+    if (!success) state.player.reputation -= 1;
+    state.ui.lastOutput = { type: "dice_result", dice, text: success ? `${rule.successText} Игрок кивает: теперь он меньше уверен, что ты лёгкая добыча.` : `${rule.failureText} Ты проигрываешь воду, монету или часть достоинства.` };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceAttack(state, target, rule, dice) {
+    const entity = WorldDB.entities[target.id];
+    const success = dice && ["success", "critical_success"].includes(dice.grade);
+    if (success) {
+        const damage = (state.player.stats.strength || 1) + (dice.grade === "critical_success" ? 8 : 4);
+        state.world.entities[target.id].hp = Math.max(0, (state.world.entities[target.id].hp || entity.hp || 1) - damage);
+        state.player.reputation -= target.tags.includes("guard") || target.tags.includes("peaceful_npc") ? 4 : 1;
+        let text = `${rule.successText} ${entity.name} получает ${damage} урона.`;
+        if (state.world.entities[target.id].hp <= 0) {
+            state.world.entities[target.id].isDead = true;
+            text += ` ${entity.name} падает и больше не поднимается.`;
+            (entity.loot || []).forEach((id) => { if (WorldDB.entities[id]) { state.player.inventory.push(id); if (state.world.entities[id]) state.world.entities[id].location = "inventory"; } });
+        }
+        state.ui.lastOutput = { type: "dice_result", dice, text };
+    } else {
+        const damage = dice?.grade === "critical_failure" ? 5 : 2;
+        state.player.hp = Math.max(0, state.player.hp - damage);
+        state.ui.lastOutput = { type: "dice_result", dice, text: `${dice?.grade === "critical_failure" ? rule.criticalFailureText : rule.failureText} Ответ стоит тебе ${damage} HP.` };
+    }
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceOpen(state, target, rule, dice) {
+    const success = dice && ["success", "critical_success"].includes(dice.grade);
+    if (success) state.world.facts.hidden_passage_known = true;
+    else state.player.hp = Math.max(0, state.player.hp - 1);
+    state.ui.lastOutput = { type: "dice_result", dice, text: success ? rule.successText : `${rule.failureText} Каменная пыль режет ладонь: -1 HP.` };
+    return tick(state, WorldDB.settings.turnMinutes);
+}
+function reduceCompleteTransit(state, payload) {
+    const transit = state.player.statuses.in_transit;
+    if (!transit || transit.id !== payload.id) return state;
+    state.player.location = transit.to;
+    delete state.player.statuses.in_transit;
+    if (!state.world.discoveredLocations.includes(transit.to)) state.world.discoveredLocations.push(transit.to);
+    state.world.timeMinutes += transit.timeCostMinutes || 20;
+    state.turn += 1;
+    state.ui.lastOutput = { type: "location", locationId: transit.to, arrivalText: `Переход завершён. Песок отпускает ноги у места: ${transit.label}.` };
+    return state;
+}
+
+class MockServer {
+    constructor(onServerAction) {
+        this.onServerAction = onServerAction;
+        this.timers = new Map();
+    }
+    handleInput(state, input) {
+        const parsedAction = parseInput(input, state);
+        if (!parsedAction) return state;
+        if (parsedAction.type !== "PARSED") return reducer(state, parsedAction);
+        const parsed = parsedAction.payload;
+        const target = resolveTarget(state, parsed);
+        const rule = findRule(parsed, target);
+        const validation = validatePipeline(state, parsed, target, rule);
+        if (!validation.ok) return reducer(state, { type: "PIPELINE_REJECTED", payload: { output: validation.output } });
+        if (!rule) {
+            const fallback = findFallback(parsed, target);
+            if (fallback) return reducer(state, { type: "FALLBACK_ACTION", payload: { text: fallback.text.replaceAll("{target}", target.name || parsed.targetText) } });
+            return reducer(state, { type: "INVALID", payload: { text: `Комбинация "${parsed.verbWord} + ${target.name || parsed.targetText}" не описана в матрицах действий.` } });
+        }
+        const dice = rollDice(rule, target, state);
+        const next = reducer(state, { type: "WORLD_ACTION", payload: { parsed, target, rule, dice, transitId: randomId("transit") } });
+        this.scheduleIfNeeded(next);
+        return next;
+    }
+    scheduleIfNeeded(state) {
+        const transit = state.player.statuses.in_transit;
+        if (!transit || this.timers.has(transit.id)) return;
+        const timer = setTimeout(() => {
+            this.timers.delete(transit.id);
+            this.onServerAction({ type: "COMPLETE_TRANSIT", payload: { id: transit.id } });
+        }, transit.durationSeconds * 1000);
+        this.timers.set(transit.id, timer);
+    }
+}
+
+const WorldValidator = {
+    validate(db) {
+        const report = [];
+        const push = (level, message) => report.push({ level, message });
+        if (!db.startLocation || !db.locations[db.startLocation]) push("error", `Стартовая локация не найдена: ${db.startLocation}`);
+        Object.values(db.locations).forEach((loc) => {
+            (loc.exits || []).forEach((exit) => {
+                if (!db.locations[exit.target]) push("error", `${loc.id}: выход ведёт в отсутствующую локацию ${exit.target}`);
+                const back = db.locations[exit.target]?.exits?.some((candidate) => candidate.target === loc.id);
+                if (db.locations[exit.target] && !back) push("warning", `${loc.id} -> ${exit.target}: нет обратной связи`);
+            });
+            (loc.entities || []).forEach((id) => { if (!db.entities[id]) push("error", `${loc.id}: сущность не найдена: ${id}`); });
+        });
+        Object.values(db.entities).forEach((entity) => (entity.loot || []).forEach((id) => { if (!db.entities[id]) push("warning", `${entity.id}: loot ссылается на отсутствующую сущность ${id}`); }));
+        db.rules.forEach((rule) => { if (!db.verbsById[rule.verb]) push("error", `${rule.id}: правило ссылается на неизвестный глагол ${rule.verb}`); });
+        if (report.length === 0) push("ok", "Мир валиден: битых связей не найдено.");
+        return report;
+    }
+};
+
+function get_available_actions(state = GlobalState) {
+    if (!state || state.phase !== "GAME" || !WorldDB) return [];
+    const loc = getCurrentLocation(state);
+    const commands = ["осмотреться", "инвентарь", "статус", "карта", "помощь", "validate_world"];
+    if (!state.player.statuses.in_transit) {
+        (loc.exits || []).forEach((exit) => commands.push(`идти ${exit.label || exit.target}`));
+        getVisibleEntities(state).forEach((entity) => {
+            const name = entity.aliases?.[0] || entity.name;
+            commands.push(`изучить ${name}`);
+            if (entity.kind === "item") commands.push(`взять ${name}`);
+            if (["npc", "monster"].includes(entity.kind)) {
+                commands.push(`говорить ${name}`, `атаковать ${name}`);
+                if (entity.kind === "npc") commands.push(`льстить ${name}`, `обмануть ${name}`, `обокрасть ${name}`);
+                if ((entity.tags || []).includes("gambler")) commands.push(`играть ${name}`);
+            }
+        });
+    } else {
+        commands.push("статус", "помощь");
+    }
+    return [...new Set(commands)];
+}
+
 const Renderer = {
     outputEl: null,
-
-    init(outputEl) {
-        this.outputEl = outputEl;
-    },
-
+    hintEl: null,
+    devStateEl: null,
+    init(outputEl, hintEl, devStateEl) { this.outputEl = outputEl; this.hintEl = hintEl; this.devStateEl = devStateEl; },
     render(state) {
         const output = state.ui.lastOutput;
         if (!output) return;
-
         let html = "";
-
-        switch (output.type) {
-            case "error":
-                html = `<p class="error-msg">${output.text}</p>`;
-                break;
-
-            case "warning":
-                html = `<p class="warning-msg">${output.text}</p>`;
-                break;
-
-            case "hint":
-                html = `<p class="hint-msg">${output.text}</p>`;
-                break;
-
-            case "info":
-                html = `<p class="info-msg">${output.text}</p>`;
-                break;
-
-            case "info_html":
-                html = `<p class="info-msg">${output.html}</p>`;
-                break;
-
-            case "success":
-                html = `<p class="success-msg">${output.text}</p>`;
-                break;
-
-            case "class_selection":
-                html = this.renderClassSelection(output.name);
-                break;
-
-            case "class_confirm":
-                html = this.renderClassConfirm(output.name, output.classId);
-                break;
-
-            case "game_start":
-                html = this.renderGameStart(output.name, output.className, output.epithet);
-                break;
-
-            case "creation_restart":
-                html = this.renderCreationRestart();
-                break;
-
-            case "location":
-                html = this.renderLocation(output);
-                break;
-
-            case "examine_npc":
-                html = `<p><strong>${output.npc.name}</strong></p><p>${output.npc.description}</p><p class="info-msg">[СТАТУС]: ${output.npc.status}</p>`;
-                break;
-
-            case "examine_item":
-                html = `<p><strong>${output.item.name}</strong></p><p>${output.item.description}</p>`;
-                break;
-
-            case "dialogue":
-                html = `<p class="npc-name">${output.npc}:</p><p>"${output.text}"</p>`;
-                break;
-
-            case "dice_result":
-                html = `<p>${output.text}</p>`;
-                break;
-
-            case "inventory":
-                html = this.renderInventory(output.items);
-                break;
-
-            case "status":
-                html = this.renderStatus(output);
-                break;
-
-            case "map":
-                html = this.renderMap(output);
-                break;
-
-            case "help":
-                html = this.renderHelp();
-                break;
-        }
-
-        if (html) {
-            this.print(html);
-            this.scrollToBottom();
-        }
+        if (["error", "warning", "hint", "info", "success"].includes(output.type)) html = `<p class="${output.type}-msg">${escapeHtml(output.text)}</p>`;
+        if (output.type === "fate_selection") html = this.renderFateSelection(output.name);
+        if (output.type === "fate_confirm") html = this.renderFateConfirm(output.name, output.fateId);
+        if (output.type === "creation_restart") html = `<p class="info-msg">Начнём сначала. Назови имя, с которым войдёшь в Агерут.</p>`;
+        if (output.type === "game_start") html = this.renderGameStart(state);
+        if (output.type === "location") html = this.renderLocation(state, output.locationId, output.arrivalText);
+        if (output.type === "exits") html = this.renderExits(output.exits);
+        if (output.type === "examine_entity") html = this.renderExamine(state, output.entityId);
+        if (output.type === "dialogue") html = this.renderDialogue(output);
+        if (output.type === "dice_result") html = this.renderDice(output.dice, output.text);
+        if (output.type === "transit_started") html = this.renderTransit(output);
+        if (output.type === "inventory") html = this.renderInventory(state);
+        if (output.type === "status") html = this.renderStatus(state);
+        if (output.type === "map") html = this.renderMap(state);
+        if (output.type === "help") html = this.renderHelp();
+        if (output.type === "validation") html = this.renderValidation(output.report);
+        if (html) this.print(html);
     },
-
     print(html) {
-        const p = document.createElement("div");
-        p.className = "output-block";
-        p.innerHTML = html;
-        this.outputEl.appendChild(p);
-        // Камера следит за строкой ввода - скролим после рендера
-        this.scrollToInputArea();
+        const block = document.createElement("div");
+        block.className = "output-block";
+        block.innerHTML = html;
+        this.outputEl.appendChild(block);
+        this.outputEl.scrollTop = this.outputEl.scrollHeight;
     },
-
-    scrollToBottom() {
-        // Для совместимости, вызывает то же самое
-        this.scrollToInputArea();
+    renderWelcome(db) {
+        this.print(`<div class="welcome-screen"><p class="game-title">${escapeHtml(db.title)}</p><p class="game-subtitle">${escapeHtml(db.subtitle)}</p><p class="game-version">${escapeHtml(db.version)}</p><br><p class="welcome-text">Агерут дышит жаром, песком и недоверием.</p><p class="welcome-text">Все истории, локации, сущности и матрицы действий загружены из папки <span class="cmd-example">world/</span>.</p><br><p class="system-msg">═══ ПРОБУЖДЕНИЕ У ЮЖНЫХ ВОРОТ ═══</p><p>Ты стоишь перед городом, который не обещает спасения. Назови имя, под которым тебя запомнят стражники, торговцы и мёртвые под песком.</p><p class="hint-msg">Tab — автодополнение, ↑/↓ — история, команда validate_world — проверка JSON-связей.</p><p class="hint-msg">Введи имя персонажа:</p></div>`);
     },
-
-    scrollToInputArea() {
-        // Скролим output-log вниз
-        const outputLog = document.querySelector(".output-log");
-        if (outputLog) {
-            outputLog.scrollTop = outputLog.scrollHeight;
-        }
+    renderLoadError(error) { this.print(`<p class="error-msg">Не удалось загрузить мир из JSON: ${escapeHtml(error.message)}</p><p class="hint-msg">Запусти проект через локальный статический сервер: <span class="cmd-example">python -m http.server 8000</span>.</p>`); },
+    renderFateSelection(name) {
+        let html = `<p class="system-msg">═══ ВЫБЕРИ СУДЬБУ ═══</p><p>Имя: <strong>${escapeHtml(name)}</strong></p>`;
+        Object.entries(WorldDB.fates).forEach(([, fate], index) => { html += `<div class="class-option"><p><strong>${index + 1}. ${escapeHtml(fate.name)}</strong> (${escapeHtml(fate.nameEn)})</p><p class="class-epithet">${escapeHtml(fate.epithet)}</p><p class="class-desc">${escapeHtml(fate.description)}</p></div>`; });
+        return html + `<p class="hint-msg">Введи номер или название судьбы.</p>`;
     },
-
-    renderClassSelection(name) {
-        let html = `<p class="system-msg">═══ КТО ТЫ? ═══</p>`;
-        html += `<p>Имя: <strong>${name}</strong></p>`;
-        html += `<p>Выбери, кем ты был до того, как оказался здесь:</p>`;
-
-        const classes = Object.entries(WorldDB.classes);
-        classes.forEach(([key, data], i) => {
-            html += `<div class="class-option">`;
-            html += `<p><strong>${i + 1}. ${data.name}</strong> (${data.nameEn})</p>`;
-            html += `<p class="class-epithet">${data.epithet}</p>`;
-            html += `<p class="class-desc">${data.description}</p>`;
-            html += `</div>`;
-        });
-
-        html += `<p class="hint-msg">Введи номер или название класса:</p>`;
-        return html;
+    renderFateConfirm(name, fateId) {
+        const fate = WorldDB.fates[fateId];
+        return `<p class="system-msg">═══ ПОСЛЕДНИЙ ШАГ ═══</p><p>${escapeHtml(name)}, <strong>${escapeHtml(fate.name)}</strong> — ${escapeHtml(fate.epithet)}.</p><p class="class-desc">${escapeHtml(fate.description)}</p><p class="class-quote">"${escapeHtml(fate.quote)}"</p><p class="class-stats">HP: ${fate.stats.hp} | Сила: ${fate.stats.strength} | Ловкость: ${fate.stats.agility} | Удача: ${fate.stats.luck} | Мудрость: ${fate.stats.wisdom} | Репутация: ${signed(fate.reputation || 0)}</p><p class="hint-msg">Напиши 'да' для подтверждения или 'нет' для нового выбора.</p>`;
     },
-
-    renderClassConfirm(name, classId) {
-        const c = WorldDB.classes[classId];
-        let html = `<p class="system-msg">═══ ПОСЛЕДНИЙ ШАГ ═══</p>`;
-        html += `<p><strong>${c.name}</strong> — ${c.epithet}</p>`;
-        html += `<p class="class-desc">${c.description}</p>`;
-        html += `<p class="class-quote">"${c.quote}"</p>`;
-        html += `<p class="class-stats">HP: ${c.stats.hp} | Сила: ${c.stats.strength} | Ловкость: ${c.stats.agility} | Удача: ${c.stats.luck} | Мудрость: ${c.stats.wisdom}</p>`;
-        html += `<p class="hint-msg">Напиши 'да' чтобы подтвердить, или 'нет' чтобы выбрать другой класс.</p>`;
-        return html;
+    renderGameStart(state) {
+        const fate = WorldDB.fates[state.player.fate];
+        return `<p class="system-msg">═══ АГЕРУТ ПРИНИМАЕТ НЕОХОТНО ═══</p><p>${escapeHtml(state.player.name)}, ${escapeHtml(fate.epithet)}.</p><p>Путь начинается у Южных ворот Агерута. Люди здесь сначала подозревают, потом торгуются, и лишь затем иногда говорят правду.</p><p class="hint-msg">Введи <span class="cmd-example">осмотреться</span>, чтобы увидеть первую локацию.</p>`;
     },
-
-    renderGameStart(name, className, epithet) {
-        let html = `<p class="system-msg">═══ ДА БУДЕТ ТАК ═══</p>`;
-        html += `<p>${name}, ${epithet}.</p>`;
-        html += `<p>Твоё путешествие начинается в Стеклянном Чистилище.</p>`;
-        html += `<p class="hint-msg">Кликай по выделенным словам, печатай команды (о, ж, и, с, к — быстрые сокращения), или введи 'помощь' для полного списка.</p>`;
-        return html;
+    renderLocation(state, locationId, arrivalText = "") {
+        const loc = WorldDB.locations[locationId];
+        let html = `<p class="system-msg">═══ ${escapeHtml(loc.title)} ═══</p><p class="location-en">(${escapeHtml(loc.titleEn)}) — ${formatTime(state)}</p>`;
+        if (arrivalText) html += `<p class="success-msg">${escapeHtml(arrivalText)}</p>`;
+        html += `<p class="atmosphere">${escapeHtml(timePhrase(state))}</p><p>${escapeHtml(loc.description)}</p><p class="atmosphere">${escapeHtml(loc.atmosphere)}</p>`;
+        const visible = getVisibleEntities(state, loc.id);
+        const npcs = visible.filter((e) => ["npc", "monster"].includes(e.kind) && !e.state.isDead);
+        const dead = visible.filter((e) => e.state.isDead);
+        const items = visible.filter((e) => e.kind === "item");
+        if (npcs.length) html += `<p class="info-msg">[СУЩНОСТИ]: ${npcs.map((e) => `<span class="clickable" data-cmd="говорить ${escapeHtml(e.aliases?.[0] || e.name)}">${escapeHtml(e.name)}</span>`).join(", ")}</p>`;
+        if (dead.length) html += `<p class="warning-msg">[МЁРТВЫЕ]: ${dead.map((e) => escapeHtml(e.name)).join(", ")}</p>`;
+        if (items.length) html += `<p class="info-msg">[ПРЕДМЕТЫ]: ${items.map((e) => `<span class="clickable" data-cmd="взять ${escapeHtml(e.aliases?.[0] || e.name)}">${escapeHtml(e.name)}</span>`).join(", ")}</p>`;
+        return html + this.renderExits(loc.exits || [], true);
     },
-
-    renderCreationRestart() {
-        return `<p class="info-msg">Начнём сначала. Как тебя зовут, странник?</p>`;
-    },
-
-    renderLocation(data) {
-        let html = `<p class="system-msg">═══ ${data.title} ═══</p>`;
-        html += `<p class="location-en">(${data.titleEn})</p>`;
-        html += `<p>${data.description}</p>`;
-        html += `<p class="atmosphere">${data.atmosphere}</p>`;
-
-        // NPC — кликабельные (talk)
-        if (data.npcs && Object.keys(data.npcs).length > 0) {
-            const npcLinks = Object.entries(data.npcs).map(([key, n]) =>
-                `<span class="clickable" data-cmd="говорить ${key}">${n.name}</span>`
-            ).join(", ");
-            html += `<p class="info-msg">[СУЩНОСТИ]: ${npcLinks}</p>`;
-        }
-
-        // Предметы — кликабельные (take)
-        if (data.items && data.items.length > 0) {
-            const itemLinks = data.items.map(iKey => {
-                const item = WorldDB.items[iKey];
-                const name = item ? item.name : iKey;
-                return `<span class="clickable" data-cmd="взять ${iKey}">${name}</span>`;
-            }).join(", ");
-            html += `<p class="info-msg">[ПРЕДМЕТЫ]: ${itemLinks}</p>`;
-        }
-
-        // Пути — кликабельные (move)
-        const exitLinks = data.exits.map(e => {
-            const l = WorldDB.locations[e];
-            const title = l ? l.title : e;
-            return `<span class="clickable" data-cmd="идти ${e}">${title}</span>`;
+    renderExits(exits, inline = false) {
+        const links = exits.map((exit) => {
+            const loc = WorldDB.locations[exit.target];
+            const label = exit.label || loc?.title || exit.target;
+            const risk = exit.hazard ? `, риск: ${exit.hazard}` : "";
+            return `<span class="clickable" data-cmd="идти ${escapeHtml(label)}">${escapeHtml(label)}</span><span class="location-en"> (${escapeHtml(exit.direction || "путь")}${escapeHtml(risk)})</span>`;
         }).join(" | ");
-        html += `<p class="info-msg">[ПУТИ]: ${exitLinks}</p>`;
-
-        return html;
+        return `${inline ? "" : "<p class=\"system-msg\">═══ ПУТИ ═══</p>"}<p class="info-msg">[ПУТИ]: ${links || "нет"}</p>`;
     },
-
-    renderInventory(items) {
-        let html = `<p class="system-msg">═══ ИНВЕНТАРЬ ═══</p>`;
-        items.forEach((item, i) => html += `<p>${i + 1}. ${item}</p>`);
-        return html;
+    renderExamine(state, entityId) {
+        const entity = WorldDB.entities[entityId];
+        const eState = getEntityState(state, entityId);
+        const hp = eState.hp !== null && eState.hp !== undefined ? `<p class="stat">HP: ${eState.hp}/${eState.maxHp}</p>` : "";
+        return `<p><strong>${escapeHtml(entity.name)}</strong></p><p>${escapeHtml(entity.description)}</p><p class="info-msg">[ТЕГИ]: ${(entity.tags || []).map(escapeHtml).join(", ")}</p>${hp}`;
     },
-
-    renderStatus(data) {
-        let html = `<p class="system-msg">═══ ${data.name} ═══</p>`;
-        html += `<p class="info-msg">${data.className} — ${data.epithet}</p>`;
-        html += `<p>HP: ${data.hp}/${data.maxHp}</p>`;
-        html += `<p>Сила: ${data.strength} | Ловкость: ${data.agility} | Удача: ${data.luck} | Мудрость: ${data.wisdom}</p>`;
-        return html;
+    renderDialogue(output) {
+        const entity = WorldDB.entities[output.entityId];
+        const aside = output.stage === "warm" ? "Собеседник всё ещё осторожен, но уже не ищет глазами ближайший выход." : output.stage === "hostile" ? "Пальцы собеседника ближе к оружию, чем к сердцу." : "Собеседник говорит так, будто каждое слово отдаёт в долг.";
+        return `<p class="npc-name">${escapeHtml(entity.name)}:</p><p>"${escapeHtml(output.text)}"</p><p class="atmosphere">${escapeHtml(aside)}</p>`;
     },
-
-    renderMap(data) {
+    renderDice(dice, text) {
+        return `${dice ? `<p class="dice-log">${escapeHtml(dice.formula)}</p>` : ""}<p>${escapeHtml(text)}</p>`;
+    },
+    renderTransit(output) {
+        return `${output.dice ? `<p class="dice-log">${escapeHtml(output.dice.formula)}</p>` : ""}<p class="info-msg">${escapeHtml(output.text || "Переход начался.")}</p><p class="warning-msg">Статус [in_transit]: переход к ${escapeHtml(output.label)} займёт ${output.durationSeconds} секунд. Физические действия временно заблокированы.</p>`;
+    },
+    renderInventory(state) {
+        if (!state.player.inventory.length) return `<p class="info-msg">Инвентарь пуст.</p>`;
+        return `<p class="system-msg">═══ ИНВЕНТАРЬ ═══</p>${state.player.inventory.map((id, index) => `<p>${index + 1}. ${escapeHtml(WorldDB.entities[id]?.name || id)}</p>`).join("")}`;
+    },
+    renderStatus(state) {
+        const fate = WorldDB.fates[state.player.fate];
+        const statuses = Object.keys(state.player.statuses).length ? Object.keys(state.player.statuses).map((s) => `[${s}]`).join(" ") : "нет";
+        return `<p class="system-msg">═══ ${escapeHtml(state.player.name)} ═══</p><p class="info-msg">${escapeHtml(fate.name)} — ${escapeHtml(fate.epithet)}</p><p>HP: ${state.player.hp}/${state.player.maxHp}</p><p>Сила: ${state.player.stats.strength} | Ловкость: ${state.player.stats.agility} | Удача: ${state.player.stats.luck} | Мудрость: ${state.player.stats.wisdom}</p><p>Репутация: ${signed(state.player.reputation)} | Статусы: ${escapeHtml(statuses)} | ${formatTime(state)}</p>`;
+    },
+    renderMap(state) {
         let html = `<p class="system-msg">═══ КАРТА ═══</p>`;
-        Object.values(data.locations).forEach(loc => {
-            const isCurrent = loc.id === data.current;
-            const discovered = data.discovered.includes(loc.id);
-
-            if (isCurrent) {
-                html += `<p class="success-msg">★ ${loc.title}</p>`;
-            } else if (discovered) {
-                html += `<p>○ ${loc.title}</p>`;
-            }
+        state.world.discoveredLocations.forEach((id) => {
+            const loc = WorldDB.locations[id];
+            html += `<p class="${id === state.player.location ? "success-msg" : ""}">${id === state.player.location ? "★" : "○"} ${escapeHtml(loc?.title || id)}</p>`;
         });
         return html;
     },
-
     renderHelp() {
-        let html = `<p class="system-msg">═══ КОМАНДЫ ═══</p>`;
-        html += `<p class="hint-msg">Сокращения: о=осмотреться, ж=взять, и=инвентарь, с=статус, к=карта, п=помощь</p>`;
-        html += `<p><strong>ПЕРЕДВИЖЕНИЕ:</strong></p>`;
-        html += `<p>• <span class="cmd-example">идти [место]</span> — перейти в локацию (быстро: нажми на название места)</p>`;
-        html += `<p>• <span class="cmd-example">осмотреться</span> (сокр: о) — осмотреться вокруг, узнать, что рядом</p>`;
-        html += `<p>• <span class="cmd-example">изучить [объект]</span> (сокр: з) — рассмотреть детально предмет или персонажа</p>`;
-        html += `<p><strong>ДЕЙСТВИЯ:</strong></p>`;
-        html += `<p>• <span class="cmd-example">взять [предмет]</span> (сокр: ж) — подобрать предмет (быстро: нажми на его название)</p>`;
-        html += `<p>• <span class="cmd-example">говорить [кто]</span> (сокр: г) — поговорить с кем-то (быстро: нажми на имя)</p>`;
-        html += `<p>• <span class="cmd-example">обокрасть [кто]</span> (сокр: ю) — попытаться украсть что-то</p>`;
-        html += `<p>• <span class="cmd-example">атаковать [кто]</span> (сокр: а) — атаковать врага</p>`;
-        html += `<p><strong>ИНФОРМАЦИЯ:</strong></p>`;
-        html += `<p>• <span class="cmd-example">инвентарь</span> (сокр: и) — показать всё в рюкзаке</p>`;
-        html += `<p>• <span class="cmd-example">статус</span> (сокр: с) — характеристики персонажа</p>`;
-        html += `<p>• <span class="cmd-example">карта</span> (сокр: к) — карта посещённых мест</p>`;
-        html += `<p>• <span class="cmd-example">помощь</span> (сокр: п) — эта справка</p>`;
-        html += `<p class="hint-msg">💡 Совет: кликай по <span class="clickable">выделенным словам</span> в тексте — это быстро вызывает команду. Используй ↑↓ стрелки для истории команд.</p>`;
-        return html;
+        return `<p class="system-msg">═══ КОМАНДЫ ═══</p><p class="hint-msg">Сокращения: о=осмотреться, ж=взять, и=инвентарь, с=статус, к=карта, п=помощь.</p><p><span class="cmd-example">идти [место]</span>, <span class="cmd-example">изучить [цель]</span>, <span class="cmd-example">взять [предмет]</span>, <span class="cmd-example">говорить [кто]</span>, <span class="cmd-example">льстить [кто]</span>, <span class="cmd-example">обмануть [кто]</span>, <span class="cmd-example">обокрасть [кто]</span>, <span class="cmd-example">играть [кто]</span>, <span class="cmd-example">атаковать [кто]</span>.</p><p><span class="cmd-example">validate_world</span> проверяет JSON на битые выходы, сущности и правила.</p>`;
     },
-
+    renderValidation(report) {
+        return `<p class="system-msg">═══ VALIDATE_WORLD ═══</p>${report.map((line) => `<p class="${line.level === "ok" ? "success" : line.level === "error" ? "error" : "warning"}-msg">[${escapeHtml(line.level)}] ${escapeHtml(line.message)}</p>`).join("")}`;
+    },
     updateSidebar(state) {
-        // Имя
-        const nameEl = document.getElementById("char-name");
-        if (nameEl) nameEl.textContent = state.player.name || "???";
-
-        // Класс
-        const classEl = document.getElementById("char-class");
-        if (classEl) {
-            classEl.textContent = state.player.class ? WorldDB.classes[state.player.class].name : "???";
-        }
-
-        // HP
+        const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+        set("char-name", state.player.name || "???");
+        set("char-class", state.player.fate ? WorldDB.fates[state.player.fate].name : "???");
+        set("char-strength", state.player.stats?.strength || "?");
+        set("char-luck", state.player.stats?.luck || "?");
+        set("world-time", state.phase === "GAME" ? formatTime(state) : "—");
+        set("char-reputation", state.phase === "GAME" ? signed(state.player.reputation) : "—");
         const hpEl = document.getElementById("char-hp");
         const hpFill = document.getElementById("hp-fill");
-        if (hpEl && state.player.maxHp > 0) {
-            hpEl.textContent = `${state.player.hp}/${state.player.maxHp}`;
-            const percent = (state.player.hp / state.player.maxHp) * 100;
-            if (hpFill) hpFill.style.width = `${percent}%`;
+        if (hpEl) hpEl.textContent = state.player.maxHp ? `${state.player.hp}/${state.player.maxHp}` : "?/?";
+        if (hpFill) hpFill.style.width = state.player.maxHp ? `${Math.max(0, Math.min(100, state.player.hp / state.player.maxHp * 100))}%` : "0%";
+        const env = document.getElementById("environment-list");
+        if (env) {
+            const loc = state.phase === "GAME" ? getCurrentLocation(state) : null;
+            env.innerHTML = loc ? `${escapeHtml(loc.title)}<br>${getVisibleEntities(state).map((e) => escapeHtml(e.name)).join("<br>") || "никого рядом"}` : "Мир загружается...";
         }
-
-        // Сила
-        const strEl = document.getElementById("char-strength");
-        if (strEl) strEl.textContent = state.player.strength || "?";
-
-        // Удача
-        const luckEl = document.getElementById("char-luck");
-        if (luckEl) luckEl.textContent = state.player.luck || "?";
+        if (this.devStateEl) this.devStateEl.textContent = JSON.stringify(state, null, 2);
+        window.GlobalState = state;
+    },
+    updateHints(inputValue, state) {
+        if (!this.hintEl) return;
+        const query = normalize(inputValue);
+        if (!query || !state || state.phase !== "GAME") { this.hintEl.textContent = ""; return; }
+        const matches = get_available_actions(state).filter((cmd) => normalize(cmd).startsWith(query)).slice(0, 8);
+        this.hintEl.textContent = matches.length ? `Подсказки: ${matches.join("  ·  ")}` : "";
     }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 8: ЗВУКОВАЯ СИСТЕМА
-// ═══════════════════════════════════════════════════════════════════════════════
 const Audio = {
     context: null,
     enabled: true,
-
-    init() {
-        try {
-            this.context = new (window.AudioContext || window.webkitAudioContext)();
-        } catch (e) { }
-    },
-
-    play(freq, dur, type = 'sine', vol = 0.15) {
+    init() { try { this.context = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { } },
+    play(freq, dur, type = "sine", vol = 0.1) {
         if (!this.enabled || !this.context) return;
         try {
             const osc = this.context.createOscillator();
             const gain = this.context.createGain();
-            osc.connect(gain);
-            gain.connect(this.context.destination);
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, this.context.currentTime);
+            osc.connect(gain); gain.connect(this.context.destination);
+            osc.type = type; osc.frequency.setValueAtTime(freq, this.context.currentTime);
             gain.gain.setValueAtTime(vol, this.context.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + dur);
-            osc.start();
-            osc.stop(this.context.currentTime + dur);
+            osc.start(); osc.stop(this.context.currentTime + dur);
         } catch (e) { }
     },
-
-    hover() { this.play(600, 0.03, 'sine', 0.05); },
-    click() { this.play(400, 0.08, 'square', 0.1); },
-    success() {
-        this.play(523, 0.1, 'sine', 0.1);
-        setTimeout(() => this.play(659, 0.1, 'sine', 0.1), 80);
-    },
-    error() { this.play(200, 0.15, 'sawtooth', 0.15); }
+    hover() { this.play(600, 0.03, "sine", 0.05); },
+    click() { this.play(400, 0.08, "square", 0.08); },
+    success() { this.play(523, 0.1); setTimeout(() => this.play(659, 0.1), 80); },
+    error() { this.play(180, 0.14, "sawtooth", 0.12); }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 9: ИГРОВОЙ КОНТРОЛЛЕР (Controller) — Dispatcher + Event Loop
-// ═══════════════════════════════════════════════════════════════════════════════
 const Game = {
     state: null,
     inputEl: null,
     history: [],
     historyIndex: 0,
-    autoCompleteMatches: [],
-    autoCompleteIndex: 0,
-
-    init(inputEl, outputEl) {
-        this.state = cloneState(InitialState);
+    server: null,
+    async init(inputEl, outputEl, hintEl, devStateEl) {
         this.inputEl = inputEl;
-        Renderer.init(outputEl);
-
+        Renderer.init(outputEl, hintEl, devStateEl);
         this.bindEvents();
-        this.renderWelcome();
+        try {
+            WorldDB = await WorldLoader.load();
+            this.state = createInitialState(WorldDB);
+            GlobalState = this.state;
+            this.server = new MockServer((action) => this.applyServerAction(action));
+            Renderer.renderWelcome(WorldDB);
+            Renderer.updateSidebar(this.state);
+            window.validate_world = () => this.executeCommand("validate_world");
+            window.get_available_actions = () => get_available_actions(this.state);
+        } catch (error) {
+            console.error(error);
+            Renderer.renderLoadError(error);
+        }
     },
-
     bindEvents() {
         this.inputEl.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                this.dispatch(this.inputEl.value);
-            } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                this.navigateHistory(-1);
-            } else if (e.key === "ArrowDown") {
-                e.preventDefault();
-                this.navigateHistory(1);
-            } else if (e.key === "Tab") {
-                e.preventDefault();
-                this.autoComplete();
-            }
+            if (e.key === "Enter") { e.preventDefault(); this.dispatch(this.inputEl.value); }
+            if (e.key === "ArrowUp") { e.preventDefault(); this.navigateHistory(-1); }
+            if (e.key === "ArrowDown") { e.preventDefault(); this.navigateHistory(1); }
+            if (e.key === "Tab") { e.preventDefault(); this.autoComplete(); }
         });
-
-        this.inputEl.addEventListener("input", () => {
-            this.autoCompleteIndex = 0;
-            this.autoCompleteMatches = [];
-        });
-
-        this.inputEl.addEventListener("focus", () => {
-            this.inputEl.style.boxShadow = "0 0 0 2px var(--accent-blood)";
-        });
-
-        this.inputEl.addEventListener("blur", () => {
-            this.inputEl.style.boxShadow = "none";
-        });
+        this.inputEl.addEventListener("input", () => Renderer.updateHints(this.inputEl.value, this.state));
     },
-
     dispatch(input) {
         const trimmed = input.trim();
-        if (!trimmed) return;
-
-        // Сохранить в историю
+        if (!trimmed || !this.state || !WorldDB) return;
         this.history.push(trimmed);
         this.historyIndex = this.history.length;
-
-        // Вывести ввод пользователя
-        Renderer.print(`<p class="user-input">&gt; ${trimmed}</p>`);
-
-        // Парсинг и редьюс
-        const action = parseInput(trimmed, this.state.phase);
-
-        if (action) {
-            // Применить редьюсер
-            this.state = reducer(this.state, action);
-
-            // Рендер результата
-            Renderer.render(this.state);
-
-            // Обновить sidebar
-            Renderer.updateSidebar(this.state);
-
-            // Звук
-            if (this.state.ui.lastOutput) {
-                if (this.state.ui.lastOutput.type === "error") Audio.error();
-                else if (this.state.ui.lastOutput.type === "success" || this.state.ui.lastOutput.type === "game_start") Audio.success();
-                else Audio.click();
-            }
-        }
-
-        // Очистить ввод
+        Renderer.print(`<p class="user-input">&gt; ${escapeHtml(trimmed)}</p>`);
+        this.state = this.server.handleInput(this.state, trimmed);
+        this.afterStateChange();
         this.inputEl.value = "";
+        Renderer.updateHints("", this.state);
     },
-
+    applyServerAction(action) {
+        if (!this.state) return;
+        this.state = reducer(this.state, action);
+        this.afterStateChange();
+    },
+    afterStateChange() {
+        GlobalState = this.state;
+        Renderer.render(this.state);
+        Renderer.updateSidebar(this.state);
+        const output = this.state.ui.lastOutput;
+        if (output?.type === "error") Audio.error();
+        else if (["success", "game_start"].includes(output?.type)) Audio.success();
+        else Audio.click();
+    },
     navigateHistory(dir) {
         const idx = this.historyIndex + dir;
         if (idx < 0 || idx > this.history.length) return;
         this.historyIndex = idx;
         this.inputEl.value = idx === this.history.length ? "" : this.history[idx];
+        Renderer.updateHints(this.inputEl.value, this.state);
     },
-
     autoComplete() {
-        const input = this.inputEl.value.trim();
-        if (!input) return;
-
-        const words = input.split(" ");
-        const last = words[words.length - 1].toLowerCase();
-
-        if (this.autoCompleteMatches.length === 0) {
-            // Получить все доступные команды
-            const allVerbs = Object.keys(VerbMap);
-            // Фильтровать по началу введённого текста
-            this.autoCompleteMatches = allVerbs.filter(v => 
-                v.startsWith(last) && v !== last
-            );
-            this.autoCompleteIndex = 0;
-        }
-
-        if (this.autoCompleteMatches.length === 0) return;
-
-        // Найти совпадение и вставить его
-        const matched = this.autoCompleteMatches[this.autoCompleteIndex % this.autoCompleteMatches.length];
-        words[words.length - 1] = matched;
-        this.autoCompleteIndex++;
-        this.inputEl.value = words.join(" ");
+        if (!this.state || this.state.phase !== "GAME") return;
+        const query = normalize(this.inputEl.value);
+        const matches = get_available_actions(this.state).filter((cmd) => normalize(cmd).startsWith(query));
+        if (!matches.length) return;
+        this.inputEl.value = matches[0];
+        Renderer.updateHints(this.inputEl.value, this.state);
     },
-
-    renderWelcome() {
-        let html = `<div class="welcome-screen">`;
-        html += `<p class="game-title">V E R M I S</p>`;
-        html += `<p class="game-subtitle">M I S T   &   M I R R O R S</p>`;
-        html += `<p class="game-version">Text-RPG Prototype v3.2 — Enhanced</p>`;
-        html += `<br>`;
-        html += `<p class="welcome-text">Стеклянное Чистилище ждёт.</p>`;
-        html += `<p class="welcome-text">Здесь отражения лгут, а туман хранит секреты.</p>`;
-        html += `<br>`;
-        html += `<p class="system-msg">═══ ПРОБУЖДЕНИЕ ═══</p>`;
-        html += `<p>Темнота. Холод. Звон стекла.</p>`;
-        html += `<p>Ты открываешь глаза. Бесконечные коридоры из зеркал и тумана.</p>`;
-        html += `<p class="prompt-text">Ты не помнишь своего имени. Но ты должен его назвать.</p>`;
-        html += `<p class="hint-msg">🎮 Совет: Используй сокращения (о, ж, и, с, к), нажимай ↑↓ для истории, Tab для автодополнения, кликай по словам!</p>`;
-        html += `<p class="hint-msg">Введи имя персонажа:</p>`;
-        html += `</div>`;
-
-        Renderer.print(html);
-    },
-
-    // Для кнопок и кликабельных слов
     executeCommand(cmd) {
         this.inputEl.value = cmd;
         this.dispatch(cmd);
     }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// РАЗДЕЛ 10: ИНИЦИАЛИЗАЦИЯ
-// ═══════════════════════════════════════════════════════════════════════════════
 document.addEventListener("DOMContentLoaded", () => {
     const inputEl = document.getElementById("terminal-input");
     const outputEl = document.getElementById("terminal-output");
+    const hintEl = document.getElementById("autocomplete-hint");
+    const devStateEl = document.getElementById("state-json");
     const sidebarEl = document.getElementById("game-sidebar");
     const toggleBtn = document.getElementById("sidebar-toggle");
-
-    if (!inputEl || !outputEl) {
-        console.error("DOM elements not found");
-        return;
-    }
-
-    // Toggle боковой панели на мобильных
-    if (toggleBtn) {
-        toggleBtn.addEventListener("click", () => {
-            if (sidebarEl) {
-                sidebarEl.classList.toggle("hidden");
-            }
-        });
-    }
-
-    // Закрыть боковую панель при клике на контент на мобильных
-    if (outputEl) {
-        outputEl.addEventListener("click", () => {
-            if (sidebarEl && window.innerWidth <= 900) {
-                sidebarEl.classList.add("hidden");
-            }
-        });
-    }
-
-    // Инициализация аудио при первом клике
-    document.addEventListener("click", () => {
-        if (!Audio.context) Audio.init();
-    }, { once: true });
-
-    // Делегирование кликов по интерактивным словам (.clickable)
+    if (!inputEl || !outputEl) return;
+    if (toggleBtn) toggleBtn.addEventListener("click", () => sidebarEl?.classList.toggle("hidden"));
+    document.addEventListener("click", () => { if (!Audio.context) Audio.init(); }, { once: true });
     document.addEventListener("click", (e) => {
-        const target = e.target.closest(".clickable");
-        if (target) {
-            const cmd = target.getAttribute("data-cmd");
-            if (cmd) {
-                Audio.click();
-                Game.executeCommand(cmd);
-                // Закрыть боковую панель на мобильных
-                if (sidebarEl && window.innerWidth <= 900) {
-                    sidebarEl.classList.add("hidden");
-                }
-            }
+        const clickable = e.target.closest(".clickable");
+        if (clickable) {
+            const cmd = clickable.getAttribute("data-cmd");
+            if (cmd) Game.executeCommand(cmd);
+            if (sidebarEl && window.innerWidth <= 900) sidebarEl.classList.add("hidden");
+            return;
         }
+        if (!e.target.closest("button") && e.target !== inputEl) inputEl.focus();
     });
-
-    // Инициализация игры
-    Game.init(inputEl, outputEl);
-
-    // Инициализация кнопок быстрых команд
-    document.querySelectorAll(".cmd-btn").forEach(btn => {
+    document.querySelectorAll(".cmd-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
-            Audio.click();
             const cmd = btn.getAttribute("data-cmd");
-            if (cmd) {
-                Game.executeCommand(cmd);
-                // Закрыть боковую панель на мобильных
-                if (sidebarEl && window.innerWidth <= 900) {
-                    sidebarEl.classList.add("hidden");
-                }
-            }
+            if (cmd) Game.executeCommand(cmd);
         });
-
-        btn.addEventListener("mouseenter", () => {
-            Audio.hover();
-        });
+        btn.addEventListener("mouseenter", () => Audio.hover());
     });
-
-    // Фокус на ввод
-    inputEl.focus();
-});
-
-// Фокус при клике на терминал (игнорируем кнопки и кликабельные слова)
-document.addEventListener("click", (e) => {
-    const inputEl = document.getElementById("terminal-input");
-    if (!inputEl) return;
-    if (e.target === inputEl) return;
-    if (e.target.classList.contains("cmd-btn")) return;
-    if (e.target.closest && e.target.closest(".clickable")) return;
+    Game.init(inputEl, outputEl, hintEl, devStateEl);
     inputEl.focus();
 });

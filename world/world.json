@@ -1,0 +1,93 @@
+{
+  "title": "VERMIS: Agirut Ashes",
+  "subtitle": "песок, миражи и кости",
+  "version": "Text-RPG Prototype v4.0 — Packet World",
+  "startLocation": "agerut_south_gate",
+  "settings": {
+    "turnMinutes": 10,
+    "startingTimeMinutes": 490,
+    "transitSecondsDefault": 5
+  },
+  "fates": {
+    "pale_knight": {
+      "name": "Бледный рыцарь",
+      "nameEn": "Pale Knight",
+      "epithet": "тот, кому ещё открывают ворота",
+      "description": "Сухой восточный ветер не смог стереть с твоего доспеха старый знак присяги. Стража Агерута видит в тебе опасность, но также узнаёт дисциплину и долг.",
+      "stats": {
+        "hp": 28,
+        "maxHp": 28,
+        "strength": 6,
+        "agility": 3,
+        "luck": 2,
+        "wisdom": 4
+      },
+      "startingItems": [
+        "pale_signet",
+        "dented_sabre"
+      ],
+      "reputation": 2,
+      "quote": "Я вошёл в город не за милостью. Я пришёл вернуть долг мёртвым."
+    },
+    "forbidden_blade_keeper": {
+      "name": "Хранитель запретного клинка",
+      "nameEn": "Keeper of the Forbidden Blade",
+      "epithet": "человек, от которого отворачиваются зеркала",
+      "description": "Под твоей одеждой спит оружие, которому не ставят цену. Те, кто чувствует его холод, говорят с тобой через плечо и держат двери наполовину закрытыми.",
+      "stats": {
+        "hp": 22,
+        "maxHp": 22,
+        "strength": 5,
+        "agility": 4,
+        "luck": 2,
+        "wisdom": 5
+      },
+      "startingItems": [
+        "sealed_blade",
+        "black_scarf"
+      ],
+      "reputation": -2,
+      "quote": "Я не владею клинком. Я лишь удерживаю его от мира."
+    },
+    "vengeful_soul": {
+      "name": "Мстительная душа",
+      "nameEn": "Vengeful Soul",
+      "epithet": "тень, которую не приняли катакомбы",
+      "description": "Ты говоришь как живой, но в твоей тени нет тепла. Простые люди боятся твоего взгляда, а стражники быстрее вспоминают про копья.",
+      "stats": {
+        "hp": 18,
+        "maxHp": 18,
+        "strength": 4,
+        "agility": 6,
+        "luck": 4,
+        "wisdom": 3
+      },
+      "startingItems": [
+        "grave_thread",
+        "bone_needle"
+      ],
+      "reputation": -4,
+      "quote": "Мне не нужен покой. Мне нужно имя того, кто украл его у меня."
+    },
+    "bone_hunter": {
+      "name": "Костяной охотник",
+      "nameEn": "Bone Hunter",
+      "epithet": "следопыт белых лагерей",
+      "description": "Ты знаешь язык костров за стенами Агерута и цену каждой фляги воды. Горожане считают тебя дикарём, но налётчики предпочитают не проверять твои стрелы.",
+      "stats": {
+        "hp": 24,
+        "maxHp": 24,
+        "strength": 4,
+        "agility": 5,
+        "luck": 5,
+        "wisdom": 3
+      },
+      "startingItems": [
+        "bone_token",
+        "hooked_spear"
+      ],
+      "reputation": 0,
+      "quote": "Город врёт стенами. Пустыня врёт небом. Кости хотя бы честны."
+    }
+  }
+}
