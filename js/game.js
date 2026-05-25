@@ -710,7 +710,16 @@ function reduceWear(state, parsed) {
 function reduceRemove(state, parsed) {
     const q = normalize(parsed.targetText);
     const slotKey = Object.keys(SlotMap).find((s) => q.includes(s) || s.includes(q));
-    const targetSlot = slotKey ? SlotMap[slotKey] : Object.keys(state.player.equipped).find((s) => q.includes(s) || s.includes(q));
+    let targetSlot = slotKey ? SlotMap[slotKey] : null;
+    if (!targetSlot) {
+        const entry = Object.entries(state.player.equipped).find(([, id]) => {
+            if (!id) return false;
+            const ent = WorldDB.entities[id];
+            return ent && [ent.id, ent.name, ...(ent.aliases || [])].map(normalize).some((n) => n === q || n.includes(q) || q.includes(n));
+        });
+        if (entry) targetSlot = entry[0];
+    }
+    if (!targetSlot) targetSlot = Object.keys(state.player.equipped).find((s) => q.includes(s) || s.includes(q));
     if (!targetSlot || !state.player.equipped[targetSlot]) { state.ui.lastOutput = { type: "warning", text: `У тебя ничего не надето в этот слот.` }; return tick(state, 0); }
     const itemId = state.player.equipped[targetSlot];
     if (itemId === "sealed_blade" && state.player.fate === "forbidden_blade_keeper") {
@@ -961,9 +970,11 @@ function get_available_actions(state = GlobalState) {
             }
             if (entity.state?.isDead) commands.push(`обыскать ${name}`);
         });
-        if (state.player.inventory.length) {
+        if (state.player.inventory.length || Object.values(state.player.equipped).some(Boolean)) {
             commands.push("выбросить [предмет]", "надеть [предмет]");
-            commands.push("снять weapon", "снять helmet", "снять armor", "снять amulet");
+            Object.entries(state.player.equipped).forEach(([slot, id]) => {
+                if (id) commands.push(`снять ${WorldDB.entities[id]?.name || id}`);
+            });
         }
         if (state.player.searchingCorpse) {
             const corpseEntity = WorldDB.entities[state.player.searchingCorpse];
@@ -1113,10 +1124,10 @@ const Renderer = {
         const eq = state.player.equipped;
         let html = `<p class="system-msg">═══ ИНВЕНТАРЬ ═══</p>`;
         const eqSlots = [];
-        if (eq.weapon) { const e = WorldDB.entities[eq.weapon]; eqSlots.push(`<span class="clickable" data-cmd="снять weapon">[${escapeHtml(e?.name || eq.weapon)}]</span>`); }
-        if (eq.helmet) { const e = WorldDB.entities[eq.helmet]; eqSlots.push(`<span class="clickable" data-cmd="снять helmet">[${escapeHtml(e?.name || eq.helmet)}]</span>`); }
-        if (eq.armor) { const e = WorldDB.entities[eq.armor]; eqSlots.push(`<span class="clickable" data-cmd="снять armor">[${escapeHtml(e?.name || eq.armor)}]</span>`); }
-        if (eq.amulet) { const e = WorldDB.entities[eq.amulet]; eqSlots.push(`<span class="clickable" data-cmd="снять amulet">[${escapeHtml(e?.name || eq.amulet)}]</span>`); }
+        if (eq.weapon) { const e = WorldDB.entities[eq.weapon]; eqSlots.push(`<span class="clickable" data-cmd="снять ${escapeHtml(e?.name || eq.weapon)}">[${escapeHtml(e?.name || eq.weapon)}]</span>`); }
+        if (eq.helmet) { const e = WorldDB.entities[eq.helmet]; eqSlots.push(`<span class="clickable" data-cmd="снять ${escapeHtml(e?.name || eq.helmet)}">[${escapeHtml(e?.name || eq.helmet)}]</span>`); }
+        if (eq.armor) { const e = WorldDB.entities[eq.armor]; eqSlots.push(`<span class="clickable" data-cmd="снять ${escapeHtml(e?.name || eq.armor)}">[${escapeHtml(e?.name || eq.armor)}]</span>`); }
+        if (eq.amulet) { const e = WorldDB.entities[eq.amulet]; eqSlots.push(`<span class="clickable" data-cmd="снять ${escapeHtml(e?.name || eq.amulet)}">[${escapeHtml(e?.name || eq.amulet)}]</span>`); }
         if (eqSlots.length) html += `<p class="info-msg">[НАДЕТО]: ${eqSlots.join(", ")}</p>`;
         if (!state.player.inventory.length) { html += `<p class="info-msg">Инвентарь пуст.</p>`; return html; }
         html += state.player.inventory.map((id, index) => {
