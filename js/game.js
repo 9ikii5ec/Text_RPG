@@ -28,6 +28,13 @@ function applyCursedRelic(state, entity) {
 }
 function randomId(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`; }
 
+function updateLoading(progress, status) {
+    const fill = document.getElementById("loading-bar-fill");
+    const text = document.getElementById("loading-status");
+    if (fill) fill.style.width = `${Math.min(100, progress)}%`;
+    if (text) text.textContent = status;
+}
+
 const WorldLoader = {
     async fetchJson(path) {
         const response = await fetch(path, { cache: "no-store" });
@@ -37,11 +44,19 @@ const WorldLoader = {
     async load() {
         const manifest = await this.fetchJson(WORLD_MANIFEST_PATH);
         const db = { title: "VERMIS", subtitle: "", version: "", startLocation: null, settings: { turnMinutes: 10, startingTimeMinutes: 490, transitSecondsDefault: 5 }, fates: {}, locations: {}, entities: {}, actionPacks: {}, verbsByWord: {}, verbsById: {}, rules: [], fallbacks: [], sourceFiles: [] };
-        for (const path of manifest.configs || []) this.mergeConfig(db, await this.fetchJson(path), path);
-        for (const path of manifest.locations || []) this.mergeLocation(db, await this.fetchJson(path), path);
-        for (const path of manifest.entities || []) this.mergeEntities(db, await this.fetchJson(path), path);
-        for (const path of manifest.actions || []) this.mergeActions(db, await this.fetchJson(path), path);
+        const configs = manifest.configs || [];
+        const locations = manifest.locations || [];
+        const entities = manifest.entities || [];
+        const actions = manifest.actions || [];
+        const total = configs.length + locations.length + entities.length + actions.length;
+        let done = 0;
+        for (const path of configs) { this.mergeConfig(db, await this.fetchJson(path), path); done++; updateLoading((done / total) * 100, `Загружаю конфиг: ${path.split("/").pop()}`); }
+        for (const path of locations) { this.mergeLocation(db, await this.fetchJson(path), path); done++; updateLoading((done / total) * 100, `Загружаю локации: ${path.split("/").pop()}`); }
+        for (const path of entities) { this.mergeEntities(db, await this.fetchJson(path), path); done++; updateLoading((done / total) * 100, `Загружаю существа: ${path.split("/").pop()}`); }
+        for (const path of actions) { this.mergeActions(db, await this.fetchJson(path), path); done++; updateLoading((done / total) * 100, `Собираю действия: ${path.split("/").pop()}`); }
+        updateLoading(95, "Собираю связи и индексы...");
         this.buildIndexes(db);
+        updateLoading(100, "Агерут готов принять тебя.");
         return db;
     },
     mergeConfig(db, data, path) {
@@ -1259,12 +1274,20 @@ const Game = {
             this.state = createInitialState(WorldDB);
             GlobalState = this.state;
             this.server = new MockServer((action) => this.applyServerAction(action));
+            setTimeout(() => {
+                const overlay = document.getElementById("loading-overlay");
+                if (overlay) overlay.classList.add("hidden");
+            }, 400);
             Renderer.renderWelcome(WorldDB);
             Renderer.updateSidebar(this.state);
             window.validate_world = () => this.executeCommand("validate_world");
             window.get_available_actions = () => get_available_actions(this.state);
         } catch (error) {
             console.error(error);
+            const fill = document.getElementById("loading-bar-fill");
+            const text = document.getElementById("loading-status");
+            if (fill) fill.style.background = "var(--accent-blood)";
+            if (text) text.textContent = `Ошибка: ${error.message}`;
             Renderer.renderLoadError(error);
         }
     },
