@@ -508,10 +508,26 @@ const Renderer = {
         const npcs = visible.filter((e) => ["npc", "monster"].includes(e.kind) && !e.state.isDead);
         const dead = visible.filter((e) => e.state.isDead);
         const items = visible.filter((e) => e.kind === "item");
-        if (npcs.length) html += `<p class="info-msg">[СУЩНОСТИ]: ${npcs.map((e) => `<span class="clickable" data-cmd="говорить ${escapeHtml(e.aliases?.[0] || e.name)}">${escapeHtml(e.name)}</span>`).join(", ")}</p>`;
+        if (npcs.length) {
+            html += `<p class="info-msg">[СУЩНОСТИ]: ${npcs.map((e) => `<span class="clickable" data-cmd="говорить ${escapeHtml(e.aliases?.[0] || e.name)}">${escapeHtml(e.name)}</span>`).join(", ")}</p>`;
+            html += this.renderCreatureActions(npcs);
+        }
         if (dead.length) html += `<p class="warning-msg">[МЁРТВЫЕ]: ${dead.map((e) => escapeHtml(e.name)).join(", ")}</p>`;
         if (items.length) html += `<p class="info-msg">[ПРЕДМЕТЫ]: ${items.map((e) => `<span class="clickable" data-cmd="взять ${escapeHtml(e.aliases?.[0] || e.name)}">${escapeHtml(e.name)}</span>`).join(", ")}</p>`;
         return html + this.renderExits(loc.exits || [], true);
+    },
+    renderCreatureActions(creatures) {
+        return `<div class="creature-actions"><p class="creature-actions-title">Действия с существами:</p>${creatures.map((entity) => {
+            const target = entity.aliases?.[0] || entity.name;
+            const actions = [
+                ["изучить", "Изучить"],
+                ["говорить", "Говорить"],
+                ["атаковать", "Атаковать"]
+            ];
+            if (entity.kind === "npc") actions.push(["льстить", "Льстить"], ["обмануть", "Обмануть"], ["обокрасть", "Обокрасть"]);
+            if ((entity.tags || []).includes("gambler")) actions.push(["играть", "Играть"]);
+            return `<div class="creature-action-card"><div class="creature-action-name">${escapeHtml(entity.name)}</div><div class="creature-action-buttons">${actions.map(([verb, label]) => `<button type="button" class="creature-action-btn clickable" data-cmd="${escapeHtml(`${verb} ${target}`)}">${escapeHtml(label)}</button>`).join("")}</div></div>`;
+        }).join("")}</div>`;
     },
     renderExits(exits, inline = false) {
         const links = exits.map((exit) => {
