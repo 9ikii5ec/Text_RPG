@@ -47,16 +47,8 @@
             </div>
 
             <div class="panel-box">
-                <h3>[ Окружение ]</h3>
-                <p id="environment-list" style="font-size:12px; color:var(--text-sepia); font-style:italic;">
-                    Мир загружается...
-                </p>
-            </div>
-
-            <div class="panel-box">
                 <h3>[ Быстрые команды ]</h3>
                 <div class="quick-commands">
-                    <button class="cmd-btn" data-cmd="осмотреться">Осмотреться</button>
                     <button class="cmd-btn" data-cmd="инвентарь">Инвентарь</button>
                     <button class="cmd-btn" data-cmd="статус">Статус</button>
                     <button class="cmd-btn" data-cmd="карта">Карта</button>
@@ -80,6 +72,15 @@
                 <input type="text" id="terminal-input" placeholder="введи команду..." autocomplete="off" spellcheck="false">
             </div>
         </main>
+
+        <aside class="world-panel" id="world-panel">
+            <div class="panel-box world-panel-box">
+                <h3>[ Окно окружения ]</h3>
+                <div id="environment-window" class="environment-window">
+                    Мир загружается...
+                </div>
+            </div>
+        </aside>
     </div>
 
     <script src="js/game.js"></script>
