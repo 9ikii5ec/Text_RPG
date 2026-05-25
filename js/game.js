@@ -3,7 +3,7 @@ let WorldDB = null;
 let GlobalState = null;
 
 const StatLabels = { strength: "Сила", agility: "Ловкость", luck: "Удача", wisdom: "Мудрость" };
-const ShortcutMap = { "о": "осмотреться", "ж": "взять", "и": "инвентарь", "с": "статус", "к": "карта", "п": "помощь", "г": "говорить", "з": "изучить", "ю": "обокрасть", "а": "атаковать" };
+const ShortcutMap = { "ж": "взять", "и": "инвентарь", "с": "статус", "к": "карта", "п": "помощь", "г": "говорить", "з": "изучить", "ю": "обокрасть", "а": "атаковать" };
 const SystemCommands = new Map([["инвентарь", "inventory"], ["i", "inventory"], ["статус", "status"], ["статы", "status"], ["карта", "map"], ["помощь", "help"], ["help", "help"], ["validate_world", "validate_world"], ["валидировать", "validate_world"]]);
 
 function cloneState(state) { return JSON.parse(JSON.stringify(state)); }
@@ -250,7 +250,6 @@ function reduceSystem(state, command) {
 function reduceWorldAction(state, payload) {
     const { parsed, target, rule, dice } = payload;
     const verbId = parsed.verb.id;
-    if (verbId === "look") return reduceLook(state);
     if (verbId === "examine") return reduceExamine(state, target);
     if (verbId === "move") return reduceMove(state, target, rule, dice, payload.transitId);
     if (verbId === "take") return reduceTake(state, target, rule, dice);
@@ -264,10 +263,6 @@ function reduceWorldAction(state, payload) {
     return tick(state, WorldDB.settings.turnMinutes);
 }
 
-function reduceLook(state) {
-    state.ui.lastOutput = { type: "location", locationId: state.player.location };
-    return tick(state, WorldDB.settings.turnMinutes);
-}
 function reduceExamine(state, target) {
     if (target.kind === "none") state.ui.lastOutput = { type: "hint", text: "Что изучить?" };
     else if (target.entity) state.ui.lastOutput = { type: "examine_entity", entityId: target.id };
@@ -367,7 +362,7 @@ function reduceCompleteTransit(state, payload) {
     if (!state.world.discoveredLocations.includes(transit.to)) state.world.discoveredLocations.push(transit.to);
     state.world.timeMinutes += transit.timeCostMinutes || 20;
     state.turn += 1;
-    state.ui.lastOutput = { type: "location", locationId: transit.to, arrivalText: `Переход завершён. Песок отпускает ноги у места: ${transit.label}.` };
+    state.ui.lastOutput = { type: "success", text: `Переход завершён. Песок отпускает ноги у места: ${transit.label}. Окружение обновлено справа.` };
     return state;
 }
 
@@ -429,7 +424,7 @@ const WorldValidator = {
 function get_available_actions(state = GlobalState) {
     if (!state || state.phase !== "GAME" || !WorldDB) return [];
     const loc = getCurrentLocation(state);
-    const commands = ["осмотреться", "инвентарь", "статус", "карта", "помощь", "validate_world"];
+    const commands = ["инвентарь", "статус", "карта", "помощь", "validate_world"];
     if (!state.player.statuses.in_transit) {
         (loc.exits || []).forEach((exit) => commands.push(`идти ${exit.label || exit.target}`));
         getVisibleEntities(state).forEach((entity) => {
@@ -452,7 +447,8 @@ const Renderer = {
     outputEl: null,
     hintEl: null,
     devStateEl: null,
-    init(outputEl, hintEl, devStateEl) { this.outputEl = outputEl; this.hintEl = hintEl; this.devStateEl = devStateEl; },
+    environmentEl: null,
+    init(outputEl, hintEl, devStateEl, environmentEl) { this.outputEl = outputEl; this.hintEl = hintEl; this.devStateEl = devStateEl; this.environmentEl = environmentEl; },
     render(state) {
         const output = state.ui.lastOutput;
         if (!output) return;
@@ -497,7 +493,7 @@ const Renderer = {
     },
     renderGameStart(state) {
         const fate = WorldDB.fates[state.player.fate];
-        return `<p class="system-msg">═══ АГЕРУТ ПРИНИМАЕТ НЕОХОТНО ═══</p><p>${escapeHtml(state.player.name)}, ${escapeHtml(fate.epithet)}.</p><p>Путь начинается у Южных ворот Агерута. Люди здесь сначала подозревают, потом торгуются, и лишь затем иногда говорят правду.</p><p class="hint-msg">Введи <span class="cmd-example">осмотреться</span>, чтобы увидеть первую локацию.</p>`;
+        return `<p class="system-msg">═══ АГЕРУТ ПРИНИМАЕТ НЕОХОТНО ═══</p><p>${escapeHtml(state.player.name)}, ${escapeHtml(fate.epithet)}.</p><p>Путь начинается у Южных ворот Агерута. Окно окружения справа уже показывает место, существ, предметы и доступные взаимодействия.</p>`;
     },
     renderLocation(state, locationId, arrivalText = "") {
         const loc = WorldDB.locations[locationId];
@@ -573,7 +569,7 @@ const Renderer = {
         return html;
     },
     renderHelp() {
-        return `<p class="system-msg">═══ КОМАНДЫ ═══</p><p class="hint-msg">Сокращения: о=осмотреться, ж=взять, и=инвентарь, с=статус, к=карта, п=помощь.</p><p><span class="cmd-example">идти [место]</span>, <span class="cmd-example">изучить [цель]</span>, <span class="cmd-example">взять [предмет]</span>, <span class="cmd-example">говорить [кто]</span>, <span class="cmd-example">льстить [кто]</span>, <span class="cmd-example">обмануть [кто]</span>, <span class="cmd-example">обокрасть [кто]</span>, <span class="cmd-example">играть [кто]</span>, <span class="cmd-example">атаковать [кто]</span>.</p><p><span class="cmd-example">validate_world</span> проверяет JSON на битые выходы, сущности и правила.</p>`;
+        return `<p class="system-msg">═══ КОМАНДЫ ═══</p><p class="hint-msg">Сокращения: ж=взять, и=инвентарь, с=статус, к=карта, п=помощь.</p><p>Окружение, пути, предметы и действия с существами всегда доступны в правом окне.</p><p><span class="cmd-example">идти [место]</span>, <span class="cmd-example">изучить [цель]</span>, <span class="cmd-example">взять [предмет]</span>, <span class="cmd-example">говорить [кто]</span>, <span class="cmd-example">льстить [кто]</span>, <span class="cmd-example">обмануть [кто]</span>, <span class="cmd-example">обокрасть [кто]</span>, <span class="cmd-example">играть [кто]</span>, <span class="cmd-example">атаковать [кто]</span>.</p><p><span class="cmd-example">validate_world</span> проверяет JSON на битые выходы, сущности и правила.</p>`;
     },
     renderValidation(report) {
         return `<p class="system-msg">═══ VALIDATE_WORLD ═══</p>${report.map((line) => `<p class="${line.level === "ok" ? "success" : line.level === "error" ? "error" : "warning"}-msg">[${escapeHtml(line.level)}] ${escapeHtml(line.message)}</p>`).join("")}`;
@@ -595,8 +591,17 @@ const Renderer = {
             const loc = state.phase === "GAME" ? getCurrentLocation(state) : null;
             env.innerHTML = loc ? `${escapeHtml(loc.title)}<br>${getVisibleEntities(state).map((e) => escapeHtml(e.name)).join("<br>") || "никого рядом"}` : "Мир загружается...";
         }
+        this.updateEnvironmentWindow(state);
         if (this.devStateEl) this.devStateEl.textContent = JSON.stringify(state, null, 2);
         window.GlobalState = state;
+    },
+    updateEnvironmentWindow(state) {
+        if (!this.environmentEl) return;
+        if (!state || state.phase !== "GAME") {
+            this.environmentEl.innerHTML = `<p class="hint-msg">Создай персонажа, чтобы увидеть окружение Агерута.</p>`;
+            return;
+        }
+        this.environmentEl.innerHTML = this.renderLocation(state, state.player.location);
     },
     updateHints(inputValue, state) {
         if (!this.hintEl) return;
@@ -635,9 +640,9 @@ const Game = {
     history: [],
     historyIndex: 0,
     server: null,
-    async init(inputEl, outputEl, hintEl, devStateEl) {
+    async init(inputEl, outputEl, hintEl, devStateEl, environmentEl) {
         this.inputEl = inputEl;
-        Renderer.init(outputEl, hintEl, devStateEl);
+        Renderer.init(outputEl, hintEl, devStateEl, environmentEl);
         this.bindEvents();
         try {
             WorldDB = await WorldLoader.load();
@@ -713,6 +718,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const outputEl = document.getElementById("terminal-output");
     const hintEl = document.getElementById("autocomplete-hint");
     const devStateEl = document.getElementById("state-json");
+    const environmentEl = document.getElementById("environment-window");
     const sidebarEl = document.getElementById("game-sidebar");
     const toggleBtn = document.getElementById("sidebar-toggle");
     if (!inputEl || !outputEl) return;
@@ -735,6 +741,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         btn.addEventListener("mouseenter", () => Audio.hover());
     });
-    Game.init(inputEl, outputEl, hintEl, devStateEl);
+    Game.init(inputEl, outputEl, hintEl, devStateEl, environmentEl);
     inputEl.focus();
 });
