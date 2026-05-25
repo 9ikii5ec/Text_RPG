@@ -2,11 +2,15 @@
   "id": "combat_actions",
   "verbs": [
     {"id": "attack", "words": ["атаковать", "ударить", "рубить", "бить"], "tags": ["physical_attack", "violent"], "defaultTarget": "hostile_entity"},
-    {"id": "threaten", "words": ["угрожать", "пригрозить"], "tags": ["social", "violent"], "defaultTarget": "npc"}
+    {"id": "threaten", "words": ["угрожать", "пригрозить"], "tags": ["social", "violent"], "defaultTarget": "npc"},
+    {"id": "flee", "words": ["сбежать", "бежать", "отступить"], "tags": ["physical_movement", "escape"]},
+    {"id": "search", "words": ["обыскать", "обшарить"], "tags": ["perception", "physical_manipulation"], "defaultTarget": "visible_entity"}
   ],
   "rules": [
     {"id": "attack_creature", "verb": "attack", "targetKind": "any_creature", "stat": "strength", "difficulty": 12, "dice": "always", "successText": "Удар находит плоть, кость или то, что притворяется ими.", "failureText": "Противник уходит из линии удара, оставляя тебе только горячий воздух.", "criticalFailureText": "Ты раскрываешься слишком широко и платишь кровью."},
-    {"id": "threaten_npc", "verb": "threaten", "targetKind": "npc", "stat": "strength", "difficulty": 14, "dice": "always", "successText": "Угроза звучит достаточно убедительно, чтобы разговор стал тише.", "failureText": "В Агеруте слишком часто угрожают, чтобы верить каждому голосу."}
+    {"id": "threaten_npc", "verb": "threaten", "targetKind": "npc", "stat": "strength", "difficulty": 14, "dice": "always", "successText": "Угроза звучит достаточно убедительно, чтобы разговор стал тише.", "failureText": "В Агеруте слишком часто угрожают, чтобы верить каждому голосу."},
+    {"id": "flee_combat", "verb": "flee", "targetKind": "none", "stat": "agility", "difficulty": 10, "dice": "always", "successText": "Ты вырываешься из схватки, оставляя противнику только песок.", "failureText": "Противник настигает тебя прежде, чем ты успеваешь разорвать дистанцию."},
+    {"id": "search_corpse", "verb": "search", "targetKind": "any_creature", "stat": "perception", "difficulty": 8, "dice": "always", "successText": "Ты обшариваешь тело.", "failureText": "В темноте пальцы находят только пыль и пустые карманы."}
   ],
   "fallbacks": [
     {"verbTags": ["physical_attack"], "targetTags": ["item"], "text": "Ты заносишь оружие над {target}, но вещь не виновата в твоей ярости. Пыль вокруг будто ждёт более разумного решения."},

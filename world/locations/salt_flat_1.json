@@ -1,0 +1,15 @@
+{
+  "id": "salt_flat_1",
+  "title": "Солончаковая пустошь",
+  "titleEn": "Salt Flat Wasteland",
+  "tags": ["desert", "wilderness", "salt", "heat"],
+  "description": "Земля здесь белая, будто её обсыпали пеплом тысяч костров. Солончак тянется до горизонта, потрескавшийся на правильные шестиугольники. Воздух кажется гуще — соль оседает на губах, режет глаза. Вдалеке виден остов верблюда, побелевший до блеска; вокруг него — ни следа.",
+  "atmosphere": "Белая пустошь отражает солнце так, что глаза начинают болеть, даже если смотреть вниз.",
+  "exits": [
+    {"target": "agerut_south_gate", "label": "южные ворота Агерута", "direction": "запад", "durationSeconds": 10},
+    {"target": "salt_flat_2", "label": "глубже в солончаки", "direction": "восток", "durationSeconds": 10},
+    {"target": "salt_cave", "label": "соляная пещера", "direction": "север", "durationSeconds": 8}
+  ],
+  "entities": [],
+  "difficultyModifier": 1
+}

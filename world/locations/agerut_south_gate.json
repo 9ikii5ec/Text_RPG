@@ -2,13 +2,13 @@
   "id": "agerut_south_gate",
   "title": "Южные ворота Агерута",
   "titleEn": "South Gate of Agirut",
-  "tags": ["city", "heat", "guarded", "sand"],
+  "tags": ["city", "heat", "guarded", "sand", "holy"],
   "description": "У южных ворот Агерута день висит белым раскалённым полотном, и тени людей кажутся выжженными прямо на пыльной земле. Над проходом поднимается круглая башня с узкими бойницами; медные пластины на её куполе мерцают, будто город смотрит на путников слепым глазом. Калитка приоткрыта, рядом с корытом для ослов стоит продавец воды, а стражник у цепи делает вид, что не замечает твоей руки у оружия. Пахнет горячим железом, кислым потом и далёким дымом костяных костров.",
   "atmosphere": "Ветер несёт песок в зубы; где-то за стеной коротко кричит птица-падальщик.",
   "exits": [
     {"target": "mirage_market", "label": "пыльный базар", "direction": "север", "durationSeconds": 5},
-    {"target": "bone_hunters_camp", "label": "лагерь костяных охотников", "direction": "запад", "durationSeconds": 5, "difficulty": 12, "hazard": "dry_sands"},
-    {"target": "sunken_ruins", "label": "утонувшие руины", "direction": "восток", "durationSeconds": 5, "difficulty": 15, "hazard": "mirage_dunes"}
+    {"target": "scorched_plain_1", "label": "выжженная равнина", "direction": "запад", "durationSeconds": 10},
+    {"target": "salt_flat_1", "label": "солончаковая пустошь", "direction": "восток", "durationSeconds": 10}
   ],
   "entities": ["red_veil_guard", "water_seller", "salt_knife"],
   "difficultyModifier": 0

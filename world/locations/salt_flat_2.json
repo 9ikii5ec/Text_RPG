@@ -1,0 +1,14 @@
+{
+  "id": "salt_flat_2",
+  "title": "Солёные топи",
+  "titleEn": "Salt Marshes",
+  "tags": ["desert", "wilderness", "salt", "danger"],
+  "description": "Солончак переходит в вязкую жижу, где соль смешана с гнилой водой. Нога проваливается по щиколотку в белую кашу, пахнущую серой и тухлыми яйцами. Торчащие из грязи кости — не только верблюжьи. Над поверхностью поднимаются редкие камни, исписанные знаками, которые никто здесь не умеет читать.",
+  "atmosphere": "Где-то под слоем соли булькает воздух, будто внизу кто-то дышит.",
+  "exits": [
+    {"target": "salt_flat_1", "label": "солончаковая пустошь", "direction": "запад", "durationSeconds": 10},
+    {"target": "sunken_ruins", "label": "утонувшие руины", "direction": "север", "durationSeconds": 10, "difficulty": 13, "hazard": "quicksand"}
+  ],
+  "entities": [],
+  "difficultyModifier": 2
+}

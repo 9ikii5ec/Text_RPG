@@ -1,0 +1,9 @@
+{
+  "entities": [
+    {"id": "forgotten_relic", "kind": "item", "name": "Забытая реликвия", "aliases": ["реликвия", "забытая реликвия"], "tags": ["item", "cursed", "relic"], "curse": "blindness", "description": "Тусклый предмет из почерневшего металла. Ты не можешь отвести от него взгляд — и мир вокруг начинает таять."},
+    {"id": "asp_amulet", "kind": "item", "name": "Амулет аспида", "aliases": ["амулет", "аспид"], "tags": ["item", "cursed", "relic"], "curse": "decay", "description": "Амулет из чешуи змеи, внутри которого застыл чей-то зрачок. Кожа под ним начинает шелушиться."},
+    {"id": "obsidian_dagger", "kind": "item", "name": "Обсидиановый кинжал", "aliases": ["кинжал", "обсидиан"], "tags": ["item", "cursed", "relic", "weapon"], "curse": "demon_host", "description": "Кинжал из чёрного стекла, который никогда не отражает лицо владельца. Изнутри лезвия доносится шёпот."},
+    {"id": "ritual_knife", "kind": "item", "name": "Ритуальный нож", "aliases": ["нож", "ритуальный нож"], "tags": ["item", "cursed", "relic", "weapon"], "curse": "demon_host", "description": "Костяная рукоять хранит тепло чужих ладоней. Лезвие помнит каждый разрез, который когда-либо делали этим ножом."},
+    {"id": "executioner_helm", "kind": "item", "name": "Шлем палача", "aliases": ["шлем", "шлем палача"], "tags": ["item", "cursed", "relic", "armor"], "curse": "blindness", "description": "Ржавый шлем с узкими прорезями. Надев его однажды, ты начинаешь видеть мир разделённым на живых и мёртвых."}
+  ]
+}
