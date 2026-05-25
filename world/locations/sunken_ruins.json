@@ -8,7 +8,7 @@
   "exits": [
     {"target": "salt_flat_2", "label": "солёные топи", "direction": "юг", "durationSeconds": 10},
     {"target": "bone_hunters_camp", "label": "лагерь костяных охотников", "direction": "юго-восток", "durationSeconds": 10, "difficulty": 14, "hazard": "raider_paths"},
-    {"target": "dune_passage", "label": "барханный проход", "direction": "север", "durationSeconds": 8, "difficulty": 12, "hazard": "unstable_ground"}
+    {"target": "dried_trail", "label": "пересохшее русло", "direction": "север", "durationSeconds": 8}
   ],
   "entities": ["raider_scout", "black_lotus"],
   "difficultyModifier": 3
