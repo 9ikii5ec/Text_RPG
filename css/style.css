@@ -189,6 +189,61 @@ body {
     transform: translateY(1px);
 }
 
+.creature-actions {
+    max-width: 760px;
+    margin: 8px 0 4px;
+    padding: 10px;
+    border: 1px solid rgba(92, 74, 61, 0.55);
+    background: rgba(232, 223, 211, 0.7);
+}
+
+.creature-actions-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-blood);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.creature-action-card {
+    display: grid;
+    grid-template-columns: minmax(130px, 190px) 1fr;
+    gap: 8px;
+    align-items: start;
+    padding: 8px 0;
+    border-top: 1px dotted rgba(90, 70, 50, 0.35);
+}
+
+.creature-action-card:first-of-type {
+    border-top: none;
+}
+
+.creature-action-name {
+    color: var(--text-ink);
+    font-weight: 700;
+}
+
+.creature-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.creature-action-btn {
+    background: linear-gradient(180deg, #fbf4ea 0%, #dfcfbc 100%);
+    border: 1px solid var(--border-brown);
+    color: var(--text-ink);
+    padding: 5px 8px;
+    font-family: 'Crimson Text', serif;
+    font-size: 12px;
+}
+
+.creature-action-btn:hover {
+    background: var(--accent-blood);
+    color: var(--bg-paper);
+}
+
 /* ═════════════════════════════════════════════════════════════════════════════
    ТЕРМИНАЛ
    ═════════════════════════════════════════════════════════════════════════════ */
@@ -477,6 +532,17 @@ body {
     transform: translateY(1px);
 }
 
+.creature-action-btn.clickable {
+    border-bottom: 1px solid var(--border-brown);
+    border-radius: 0;
+}
+
+.creature-action-btn.clickable:hover {
+    background: var(--accent-blood);
+    color: var(--bg-paper);
+    border-bottom: 1px solid var(--accent-red);
+}
+
 /* ═════════════════════════════════════════════════════════════════════════════
    ПОЛЕ ВВОДА
    ═════════════════════════════════════════════════════════════════════════════ */
@@ -666,6 +732,14 @@ body {
 
     .output-log {
         padding: 15px;
+    }
+
+    .creature-action-card {
+        grid-template-columns: 1fr;
+    }
+
+    .creature-action-btn {
+        flex: 1 1 calc(50% - 6px);
     }
 }
 
