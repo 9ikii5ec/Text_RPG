@@ -1,0 +1,24 @@
+{
+  "configs": [
+    "world/world.json"
+  ],
+  "locations": [
+    "world/locations/agerut_south_gate.json",
+    "world/locations/mirage_market.json",
+    "world/locations/cracked_tavern.json",
+    "world/locations/bone_hunters_camp.json",
+    "world/locations/brass_forge.json",
+    "world/locations/sunken_ruins.json",
+    "world/locations/drowned_catacombs.json"
+  ],
+  "entities": [
+    "world/entities/agerut_npcs.json",
+    "world/entities/items.json",
+    "world/entities/monsters.json"
+  ],
+  "actions": [
+    "world/actions/movement_actions.json",
+    "world/actions/social_actions.json",
+    "world/actions/combat_actions.json"
+  ]
+}

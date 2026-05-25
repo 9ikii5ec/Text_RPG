@@ -1,0 +1,15 @@
+{
+  "id": "sunken_ruins",
+  "title": "Утонувшие в песке руины",
+  "titleEn": "Sunken Ruins",
+  "tags": ["ruins", "sand", "danger", "mirage"],
+  "description": "Руины начинаются там, где городская дорога ломается и исчезает под волнами светлого песка. Из барханов торчат верхушки арок, будто кости пальцев, которыми похороненный храм пытается выбраться наружу. Между плитами виден провал в катакомбы, у разбитого обелиска блестит чёрный цветок, а свежие следы налётчиков уходят к стене, покрытой знаками против солнца. Звучит только сухой свист ветра; пахнет горячим камнем, старой кровью и водой, которой здесь быть не должно.",
+  "atmosphere": "Ночь приближается быстрее, чем кажется: тени в провалах уже слишком длинные.",
+  "exits": [
+    {"target": "agerut_south_gate", "label": "южные ворота", "direction": "запад", "durationSeconds": 5, "difficulty": 15, "hazard": "mirage_dunes"},
+    {"target": "bone_hunters_camp", "label": "лагерь костяных охотников", "direction": "юго-запад", "durationSeconds": 5, "difficulty": 14, "hazard": "raider_paths"},
+    {"target": "drowned_catacombs", "label": "нижние катакомбы", "direction": "вниз", "durationSeconds": 5, "difficulty": 16, "hazard": "collapsing_stairs"}
+  ],
+  "entities": ["raider_scout", "black_lotus"],
+  "difficultyModifier": 3
+}

@@ -36,13 +36,20 @@
                     <span class="stat-label">Удача:</span>
                     <span class="stat-value" id="char-luck">?</span>
                 </div>
+                <div class="stat-row">
+                    <span class="stat-label">Репутация:</span>
+                    <span class="stat-value" id="char-reputation">—</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Время:</span>
+                    <span class="stat-value" id="world-time">—</span>
+                </div>
             </div>
 
             <div class="panel-box">
                 <h3>[ Окружение ]</h3>
-                <p style="font-size:12px; color:var(--text-sepia); font-style:italic;">
-                    Существа рядом:<br>
-                    Туман скрывает всё...
+                <p id="environment-list" style="font-size:12px; color:var(--text-sepia); font-style:italic;">
+                    Мир загружается...
                 </p>
             </div>
 
@@ -54,23 +61,20 @@
                     <button class="cmd-btn" data-cmd="статус">Статус</button>
                     <button class="cmd-btn" data-cmd="карта">Карта</button>
                     <button class="cmd-btn" data-cmd="помощь">Помощь</button>
+                    <button class="cmd-btn" data-cmd="validate_world">Validate</button>
                 </div>
             </div>
 
-            <div class="panel-box">
-                <h3>[ Сохранения ]</h3>
-                <p style="font-size:12px; color:var(--text-sepia);">
-                    Слот 1 — пусто — <em>Сохр. / Загр.</em><br>
-                    Слот 2 — пусто — <em>Сохр. / Загр.</em><br>
-                    Слот 3 — пусто — <em>Сохр. / Загр.</em><br>
-                    Авто — нет — <em>Загр.</em> ⟳ Новая игра &gt;
-                </p>
-            </div>
+            <details class="panel-box dev-panel" open>
+                <summary>[ Dev Panel / GlobalState ]</summary>
+                <pre id="state-json">{}</pre>
+            </details>
         </aside>
 
         <!-- ОСНОВНОЙ ТЕРМИНАЛ -->
         <main class="main-content">
             <div class="output-log" id="terminal-output"></div>
+            <div class="autocomplete-hint" id="autocomplete-hint"></div>
             <div class="input-area">
                 <span class="prompt">&gt;</span>
                 <input type="text" id="terminal-input" placeholder="введи команду..." autocomplete="off" spellcheck="false">
