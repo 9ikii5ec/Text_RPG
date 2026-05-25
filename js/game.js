@@ -483,21 +483,21 @@ const Renderer = {
         this.outputEl.scrollTop = this.outputEl.scrollHeight;
     },
     renderWelcome(db) {
-        this.print(`<div class="welcome-screen"><p class="game-title">${escapeHtml(db.title)}</p><p class="game-subtitle">${escapeHtml(db.subtitle)}</p><p class="game-version">${escapeHtml(db.version)}</p><br><p class="welcome-text">Агерут дышит жаром, песком и недоверием.</p><p class="welcome-text">Все истории, локации, сущности и матрицы действий загружены из папки <span class="cmd-example">world/</span>.</p><br><p class="system-msg">═══ ПРОБУЖДЕНИЕ У ЮЖНЫХ ВОРОТ ═══</p><p>Ты стоишь перед городом, который не обещает спасения. Назови имя, под которым тебя запомнят стражники, торговцы и мёртвые под песком.</p><p class="hint-msg">Tab — автодополнение, ↑/↓ — история, команда validate_world — проверка JSON-связей.</p><div class="input-callout"><span>Чтобы продолжить, введи имя персонажа</span><strong>например: Арам</strong></div></div>`);
+        this.print(`<div class="welcome-screen"><p class="game-title">${escapeHtml(db.title)}</p><p class="game-subtitle">${escapeHtml(db.subtitle)}</p><p class="game-version">${escapeHtml(db.version)}</p><br><p class="welcome-text">Агерут дышит жаром, песком и недоверием.</p><p class="welcome-text">Все истории, локации, сущности и матрицы действий загружены из папки <span class="cmd-example">world/</span>.</p><br><p class="system-msg">═══ ПРОБУЖДЕНИЕ У ЮЖНЫХ ВОРОТ ═══</p><p>Ты стоишь перед городом, который не обещает спасения. Назови имя, под которым тебя запомнят стражники, торговцы и мёртвые под песком.</p><p class="hint-msg">Tab — автодополнение, ↑/↓ — история, команда validate_world — проверка JSON-связей.</p><p class="hint-msg">Введи имя персонажа:</p></div>`);
     },
     renderLoadError(error) { this.print(`<p class="error-msg">Не удалось загрузить мир из JSON: ${escapeHtml(error.message)}</p><p class="hint-msg">Запусти проект через локальный статический сервер: <span class="cmd-example">python -m http.server 8000</span>.</p>`); },
     renderFateSelection(name) {
         let html = `<p class="system-msg">═══ ВЫБЕРИ СУДЬБУ ═══</p><p>Имя: <strong>${escapeHtml(name)}</strong></p>`;
         Object.entries(WorldDB.fates).forEach(([, fate], index) => { html += `<div class="class-option"><p><strong>${index + 1}. ${escapeHtml(fate.name)}</strong> (${escapeHtml(fate.nameEn)})</p><p class="class-epithet">${escapeHtml(fate.epithet)}</p><p class="class-desc">${escapeHtml(fate.description)}</p></div>`; });
-        return html + `<div class="input-callout"><span>Чтобы продолжить, введи номер или название судьбы</span><strong>например: 1</strong></div>`;
+        return html + `<p class="hint-msg">Введи номер или название судьбы.</p>`;
     },
     renderFateConfirm(name, fateId) {
         const fate = WorldDB.fates[fateId];
-        return `<p class="system-msg">═══ ПОСЛЕДНИЙ ШАГ ═══</p><p>${escapeHtml(name)}, <strong>${escapeHtml(fate.name)}</strong> — ${escapeHtml(fate.epithet)}.</p><p class="class-desc">${escapeHtml(fate.description)}</p><p class="class-quote">"${escapeHtml(fate.quote)}"</p><p class="class-stats">HP: ${fate.stats.hp} | Сила: ${fate.stats.strength} | Ловкость: ${fate.stats.agility} | Удача: ${fate.stats.luck} | Мудрость: ${fate.stats.wisdom} | Репутация: ${signed(fate.reputation || 0)}</p><div class="input-callout important"><span>Чтобы подтвердить выбор, введи</span><strong>да</strong><span>или введи <b>нет</b>, чтобы выбрать заново</span></div>`;
+        return `<p class="system-msg">═══ ПОСЛЕДНИЙ ШАГ ═══</p><p>${escapeHtml(name)}, <strong>${escapeHtml(fate.name)}</strong> — ${escapeHtml(fate.epithet)}.</p><p class="class-desc">${escapeHtml(fate.description)}</p><p class="class-quote">"${escapeHtml(fate.quote)}"</p><p class="class-stats">HP: ${fate.stats.hp} | Сила: ${fate.stats.strength} | Ловкость: ${fate.stats.agility} | Удача: ${fate.stats.luck} | Мудрость: ${fate.stats.wisdom} | Репутация: ${signed(fate.reputation || 0)}</p><p class="hint-msg">Напиши 'да' для подтверждения или 'нет' для нового выбора.</p>`;
     },
     renderGameStart(state) {
         const fate = WorldDB.fates[state.player.fate];
-        return `<p class="system-msg">═══ АГЕРУТ ПРИНИМАЕТ НЕОХОТНО ═══</p><p>${escapeHtml(state.player.name)}, ${escapeHtml(fate.epithet)}.</p><p>Путь начинается у Южных ворот Агерута. Люди здесь сначала подозревают, потом торгуются, и лишь затем иногда говорят правду.</p><div class="input-callout"><span>Чтобы продолжить, введи команду</span><strong>осмотреться</strong></div>`;
+        return `<p class="system-msg">═══ АГЕРУТ ПРИНИМАЕТ НЕОХОТНО ═══</p><p>${escapeHtml(state.player.name)}, ${escapeHtml(fate.epithet)}.</p><p>Путь начинается у Южных ворот Агерута. Люди здесь сначала подозревают, потом торгуются, и лишь затем иногда говорят правду.</p><p class="hint-msg">Введи <span class="cmd-example">осмотреться</span>, чтобы увидеть первую локацию.</p>`;
     },
     renderLocation(state, locationId, arrivalText = "") {
         const loc = WorldDB.locations[locationId];
