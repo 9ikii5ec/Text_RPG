@@ -1,0 +1,15 @@
+{
+  "id": "scorched_plain_2",
+  "title": "Глубокая равнина",
+  "titleEn": "Deep Plain",
+  "tags": ["desert", "wilderness", "heat", "danger"],
+  "description": "Равнина здесь глубже уходит в пустыню. Песок рыхлый, он хрустит под ногами не как песок, а как толчёная кость. Вокруг разбросаны обломки амфор и ржавые наконечники копий — следы старой битвы, которую песок так и не допил до конца. Над головой кружит одна и та же птица, считая круги.",
+  "atmosphere": "Здесь тише, чем должно быть. Даже ветер обходит это место стороной.",
+  "exits": [
+    {"target": "scorched_plain_1", "label": "выжженная равнина", "direction": "восток", "durationSeconds": 10},
+    {"target": "bone_hunters_camp", "label": "лагерь костяных охотников", "direction": "запад", "durationSeconds": 10},
+    {"target": "alchemist_encampment", "label": "стоянка алхимика", "direction": "север", "durationSeconds": 8}
+  ],
+  "entities": [],
+  "difficultyModifier": 2
+}

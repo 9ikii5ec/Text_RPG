@@ -6,15 +6,25 @@
     "world/locations/agerut_south_gate.json",
     "world/locations/mirage_market.json",
     "world/locations/cracked_tavern.json",
-    "world/locations/bone_hunters_camp.json",
     "world/locations/brass_forge.json",
+    "world/locations/scorched_plain_1.json",
+    "world/locations/scorched_plain_2.json",
+    "world/locations/salt_flat_1.json",
+    "world/locations/salt_flat_2.json",
+    "world/locations/dune_passage.json",
+    "world/locations/salt_cave.json",
+    "world/locations/alchemist_encampment.json",
+    "world/locations/bone_hunters_camp.json",
     "world/locations/sunken_ruins.json",
     "world/locations/drowned_catacombs.json"
   ],
   "entities": [
     "world/entities/agerut_npcs.json",
     "world/entities/items.json",
-    "world/entities/monsters.json"
+    "world/entities/monsters.json",
+    "world/entities/cursed_relics.json",
+    "world/entities/alchemists.json",
+    "world/entities/hermits.json"
   ],
   "actions": [
     "world/actions/movement_actions.json",

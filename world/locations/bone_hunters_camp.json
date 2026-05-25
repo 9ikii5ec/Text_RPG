@@ -6,8 +6,8 @@
   "description": "Лагерь стоит в ложбине за стенами, где жара слабее, но песок по ночам шевелится, словно под ним кто-то дышит. В центре возвышается тотем из рёбер пустынного зверя; на нём сушатся маски налётчиков, снятые вместе с кожей. У костра можно говорить с капитаном охотников, рядом привязан пепельный пёс, а между кольями висит карта старых катакомб с отметками свежей крови. Пахнет палёной костью, горьким дымом и водой, которую берегут больше золота.",
   "atmosphere": "В закатном свете белые кости становятся розовыми, будто лагерь только что вытащили из раны.",
   "exits": [
-    {"target": "agerut_south_gate", "label": "южные ворота", "direction": "восток", "durationSeconds": 5, "difficulty": 11, "hazard": "dry_sands"},
-    {"target": "sunken_ruins", "label": "утонувшие руины", "direction": "северо-восток", "durationSeconds": 5, "difficulty": 14, "hazard": "raider_paths"}
+    {"target": "scorched_plain_2", "label": "выжженная равнина", "direction": "восток", "durationSeconds": 10},
+    {"target": "sunken_ruins", "label": "утонувшие руины", "direction": "север", "durationSeconds": 10, "difficulty": 14, "hazard": "raider_paths"}
   ],
   "entities": ["bone_hunter_captain", "ash_hound", "bone_map"],
   "difficultyModifier": 0

@@ -2,17 +2,19 @@
   "id": "social_actions",
   "verbs": [
     {"id": "talk", "words": ["говорить", "поговорить", "спросить"], "tags": ["social"], "defaultTarget": "npc"},
-    {"id": "flatter", "words": ["льстить", "польстить"], "tags": ["social", "deception"], "defaultTarget": "npc"},
-    {"id": "deceive", "words": ["обмануть", "соврать"], "tags": ["social", "deception"], "defaultTarget": "npc"},
     {"id": "steal", "words": ["обокрасть", "украсть", "стащить"], "tags": ["physical_manipulation", "crime"], "defaultTarget": "npc"},
-    {"id": "gamble", "words": ["играть", "сыграть"], "tags": ["social", "gambling"], "defaultTarget": "npc"}
+    {"id": "gamble", "words": ["играть", "сыграть"], "tags": ["social", "gambling"], "defaultTarget": "npc"},
+    {"id": "cleanse", "words": ["очиститься", "снять_проклятие"], "tags": ["mystic", "healing"], "defaultTarget": "npc"},
+    {"id": "buy", "words": ["купить", "приобрести"], "tags": ["social", "trade"], "defaultTarget": "npc"},
+    {"id": "experiment", "words": ["эксперимент", "лечь_на_стол"], "tags": ["social", "mystic"], "defaultTarget": "npc"}
   ],
   "rules": [
     {"id": "talk_npc", "verb": "talk", "targetKind": "npc"},
-    {"id": "flatter_npc", "verb": "flatter", "targetKind": "npc", "stat": "wisdom", "difficulty": 13, "dice": "always", "successText": "Слова ложатся достаточно мягко, чтобы собеседник на миг перестал считать тебя угрозой.", "failureText": "Лесть звучит слишком сладко для города, где даже вода бывает с привкусом крови."},
-    {"id": "deceive_npc", "verb": "deceive", "targetKind": "npc", "stat": "wisdom", "difficulty": 15, "dice": "always", "successText": "Ложь проходит между вами тонкой нитью и пока не рвётся.", "failureText": "Собеседник замечает трещину в твоей истории раньше, чем ты успеваешь её закрыть."},
     {"id": "steal_npc", "verb": "steal", "targetKind": "npc", "stat": "agility", "difficulty": 14, "dice": "always", "successText": "Твоя рука возвращается с добычей раньше, чем чужой взгляд падает вниз.", "failureText": "Тень твоего движения оказывается слишком длинной."},
-    {"id": "gamble_gambler", "verb": "gamble", "targetKind": "npc", "requiredTags": ["gambler"], "stat": "luck", "difficulty": 14, "dice": "always", "successText": "Кости стучат по столу так, будто на этот раз они на твоей стороне.", "failureText": "Кости показывают пустыне твоё имя, и пустыня смеётся первой."}
+    {"id": "gamble_gambler", "verb": "gamble", "targetKind": "npc", "requiredTags": ["gambler"], "stat": "luck", "difficulty": 14, "dice": "always", "successText": "Кости стучат по столу так, будто на этот раз они на твоей стороне.", "failureText": "Кости показывают пустыне твоё имя, и пустыня смеётся первой."},
+    {"id": "cleanse_npc", "verb": "cleanse", "targetKind": "npc", "stat": "wisdom", "difficulty": 14, "dice": "always", "successText": "Отшельник кивает, будто ждал этого.", "failureText": "Отшельник качает головой: твоя вера недостаточно сильна."},
+    {"id": "buy_alchemist", "verb": "buy", "targetKind": "npc", "stat": "charisma", "difficulty": 10, "dice": "dangerous_location", "successText": "Алхимик кивает и хлопает в ладоши.", "failureText": "Алхимик качает головой: цена не та."},
+    {"id": "experiment_alchemist", "verb": "experiment", "targetKind": "npc", "stat": "constitution", "difficulty": 14, "dice": "always", "successText": "Алхимик довольно кивает. Ты теряешь сознание.", "failureText": "Алхимик морщится: твоё тело не подходит."}
   ],
   "fallbacks": [
     {"verbTags": ["social"], "targetTags": ["beast"], "text": "Ты обращаешься к {target}, но ответом становится только настороженное дыхание и взгляд без человеческой жалости."},
