@@ -824,6 +824,16 @@ body {
 }
 
 /* ═════════════════════════════════════════════════════════════════════════════
+   VERMIS-ИКОНКИ (монохром, никаких emoji)
+   ═════════════════════════════════════════════════════════════════════════════ */
+.icon-weapon::before  { content: "✦"; color: var(--accent-blood); margin-right: 0.3em; }
+.icon-armor::before   { content: "◈"; color: var(--accent-blood); margin-right: 0.3em; }
+.icon-helmet::before  { content: "▲"; color: var(--accent-blood); margin-right: 0.3em; }
+.icon-amulet::before  { content: "◇"; color: var(--accent-blood); margin-right: 0.3em; }
+.icon-loc-here::before  { content: "◆"; color: var(--accent-blood); margin-right: 0.4em; }
+.icon-loc-there::before { content: "◇"; color: var(--text-sepia); margin-right: 0.4em; }
+
+/* ═════════════════════════════════════════════════════════════════════════════
    СЕЛЕКЦИЯ
    ═════════════════════════════════════════════════════════════════════════════ */
 ::selection {

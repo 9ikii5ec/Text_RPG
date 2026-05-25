@@ -386,6 +386,14 @@ function tick(state, minutes = WorldDB.settings.turnMinutes) {
                     if (state.ui.lastOutput?.type !== "dice_result") {
                         state.ui.lastOutput = { type: "info", text: `Костяной охотник преграждает путь: «Плати за проход, чужак.»` };
                     }
+                } else if (huntResult.action === "ambush" && huntResult.score > 0) {
+                    state.world.facts.camp_ambush_spawned = true;
+                    const attacker = pick(hostileHere);
+                    const dmg = Math.floor((attacker.damage || 3) * 1.5);
+                    state.player.hp = Math.max(0, state.player.hp - dmg);
+                    state.player.lastAttackerId = attacker.id;
+                    const enemyName = attacker.aliases?.[0] || attacker.name;
+                    state.ui.lastOutput = { type: "warning", text: `${enemyName} выпрыгивает из темноты! Внезапная атака — ${dmg} урона.` };
                 }
             }
         }
@@ -1143,7 +1151,7 @@ const Renderer = {
         const statuses = Object.keys(state.player.statuses).length ? Object.keys(state.player.statuses).map((s) => `[${s}]`).join(" ") : "нет";
         const curseDisplay = Object.keys(state.player.statuses).filter((s) => CurseLabels[s]).map((s) => `<span class="warning-msg">[${CurseLabels[s]}]</span>`).join(" ") || "";
         const eq = state.player.equipped;
-        const eqStr = [eq.weapon ? `⚔${escapeHtml(WorldDB.entities[eq.weapon]?.name || "")}` : "", eq.helmet ? `⛑${escapeHtml(WorldDB.entities[eq.helmet]?.name || "")}` : "", eq.armor ? `🛡${escapeHtml(WorldDB.entities[eq.armor]?.name || "")}` : "", eq.amulet ? `📿${escapeHtml(WorldDB.entities[eq.amulet]?.name || "")}` : ""].filter(Boolean).join(", ");
+        const eqStr = [eq.weapon ? `<span class="icon-weapon"></span>${escapeHtml(WorldDB.entities[eq.weapon]?.name || "")}` : "", eq.helmet ? `<span class="icon-helmet"></span>${escapeHtml(WorldDB.entities[eq.helmet]?.name || "")}` : "", eq.armor ? `<span class="icon-armor"></span>${escapeHtml(WorldDB.entities[eq.armor]?.name || "")}` : "", eq.amulet ? `<span class="icon-amulet"></span>${escapeHtml(WorldDB.entities[eq.amulet]?.name || "")}` : ""].filter(Boolean).join(", ");
         const thirst = state.player.equipped.weapon === "sealed_blade" ? ` | Жажда крови: ${"█".repeat(Math.min(state.player.bloodThirst || 0, 5))}${"░".repeat(Math.max(0, 5 - (state.player.bloodThirst || 0)))}` : "";
         const summonNames = state.player.summoned.map((id) => WorldDB.entities[id]?.name || id).join(", ");
         const summonStr = summonNames ? ` | Призваны: ${escapeHtml(summonNames)}` : "";
@@ -1153,7 +1161,7 @@ const Renderer = {
         let html = `<p class="system-msg">═══ КАРТА ═══</p>`;
         state.world.discoveredLocations.forEach((id) => {
             const loc = WorldDB.locations[id];
-            html += `<p class="${id === state.player.location ? "success-msg" : ""}">${id === state.player.location ? "★" : "○"} ${escapeHtml(loc?.title || id)}</p>`;
+            html += `<p class="${id === state.player.location ? "success-msg" : ""}"><span class="${id === state.player.location ? "icon-loc-here" : "icon-loc-there"}"></span>${escapeHtml(loc?.title || id)}</p>`;
         });
         return html;
     },
@@ -1177,8 +1185,9 @@ const Renderer = {
         set("world-time", state.phase === "GAME" ? formatTime(state) : "—");
         set("char-reputation", state.phase === "GAME" ? signed(state.player.reputation) : "—");
         const eq = state.player.equipped;
-        const display = [eq.weapon ? `⚔${WorldDB.entities[eq.weapon]?.name || ""}` : "", eq.helmet ? `⛑${WorldDB.entities[eq.helmet]?.name || ""}` : "", eq.armor ? `🛡${WorldDB.entities[eq.armor]?.name || ""}` : "", eq.amulet ? `📿${WorldDB.entities[eq.amulet]?.name || ""}` : ""].filter(Boolean).join(", ");
-        set("char-equip", display || "—");
+        const display = [eq.weapon ? `<span class="icon-weapon"></span>${WorldDB.entities[eq.weapon]?.name || ""}` : "", eq.helmet ? `<span class="icon-helmet"></span>${WorldDB.entities[eq.helmet]?.name || ""}` : "", eq.armor ? `<span class="icon-armor"></span>${WorldDB.entities[eq.armor]?.name || ""}` : "", eq.amulet ? `<span class="icon-amulet"></span>${WorldDB.entities[eq.amulet]?.name || ""}` : ""].filter(Boolean).join(", ");
+        const equipEl = document.getElementById("char-equip");
+        if (equipEl) equipEl.innerHTML = display || "—";
         const summonNames = state.player.summoned.map((id) => WorldDB.entities[id]?.name || id).join(", ");
         set("char-summoned", summonNames || "—");
         const hpEl = document.getElementById("char-hp");
